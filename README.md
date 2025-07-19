@@ -1,2 +1,2 @@
 # Intergration-Project
-AI Website 
+AI Chest X-Ray Website Application
