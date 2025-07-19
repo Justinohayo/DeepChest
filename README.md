@@ -1,2 +1,2 @@
-# Intergration-Project
+# DeepChest
 AI Chest X-Ray Website Application
