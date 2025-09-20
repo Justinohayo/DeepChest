@@ -9,8 +9,16 @@
   </head>
   <!-- Main body content, fields for username and password to log users in -->
   <body>
-    <div class="center-content">
+    <!-- Account Created message handling -->
+    {% with messages = get_flashed_messages() %} {% if messages %} {% for
+    message in messages %}
+    <script>
+      alert("{{ message }}");
+    </script>
+    {% endfor %} {% endif %} {% endwith %}
+    <div class="login-content">
       <h1>Login</h1>
+      <p>Sign in to continue</p>
       <form method="POST" action="/login" class="login-form">
         <input type="text" name="username" placeholder="Username" required />
         <input
@@ -21,6 +29,10 @@
         />
         <button type="submit">Login</button>
       </form>
+      <p>Don't have an account?</p>
+      <a href="/signup">
+        <button type="button" class="signup-btn">Sign Up</button>
+      </a>
     </div>
   </body>
 </html>

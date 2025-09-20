@@ -12,21 +12,25 @@ h1 {
 }
 /* Style guide for navigation bar */
 nav {
-  background: #2c3e50;
+  background: #fff; /* White background */
   padding: 1em;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  border-bottom: 2px solid #222; /* Black bottom border */
+  border-top: 2px solid #222; /* Black top border (optional) */
+  border-left: 0;
+  border-right: 0;
 }
-/* Colour and font settings for logo text */
+
 nav .logo {
-  color: #fff;
+  color: #222; /* Black text for logo */
   font-weight: bold;
   font-size: 1.2em;
 }
-/* Style guide for navigation links */
+
 nav .nav-links a {
-  color: #fff;
+  color: #222; /* Black text for links */
   margin-right: 2em;
   text-decoration: none;
   font-weight: bold;
@@ -34,18 +38,35 @@ nav .nav-links a {
 nav .nav-links a:last-child {
   margin-right: 0;
 }
-/* Style guide for centered content on the home page */
-.center-content {
-  margin-top: 2em;
+/* Style guide for  content on the home page */
+.main-content {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 60vh;
+  gap: 40px;
+  margin-top: 130px;
+  max-width: 900px; /* Add this line */
+  margin-left: auto; /* Add this line */
+  margin-right: auto; /* Add this line */
+  background: #fff; /* Optional: makes content stand out */
+  padding: 140px 130px; /* Optional: adds space inside the box */
+  border-radius: 12px; /* Optional: rounded corners */
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.07); /* Optional: subtle shadow */
 }
-.center-content p {
-  max-width: 600px;
-  text-align: center;
+.left-content {
+  flex: 1;
+  text-align: left;
+}
+.right-content {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+.right-content img {
+  max-width: 150%;
+  height: auto;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 /* Style guide for the login form */
 .login-form {
@@ -63,7 +84,7 @@ nav .nav-links a:last-child {
 }
 .login-form button {
   padding: 0.75em;
-  background: #2c3e50;
+  background: #000000;
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -75,23 +96,24 @@ nav .nav-links a:last-child {
 .login-form button:hover {
   background: #1a232b;
 }
-/* Style guide for the sign up page */
-.signup-form {
+
+.login-content {
   display: flex;
   flex-direction: column;
-  gap: 1em;
-  width: 300px;
-  margin: 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh; /* Adjusts vertical centering */
+  background: #fff;
+  margin: 60px auto 0 auto;
+  padding: 10px 10px;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.07);
+  max-width: 400px;
 }
-.signup-form input {
+/* Style guide for the signup button on login page and sign up page */
+.signup-btn {
   padding: 0.75em;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 1em;
-}
-.signup-form button {
-  padding: 0.75em;
-  background: #2c3e50;
+  background: #000000;
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -99,7 +121,51 @@ nav .nav-links a:last-child {
   font-weight: bold;
   cursor: pointer;
   transition: background 0.2s;
+  margin-top: 10px;
 }
-.signup-form button:hover {
-  background: #1a232b;
+/* Style guide for the signup form */
+.signup-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+}
+
+.signup-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 24px;
+  max-width: 600px;
+  background: #fff;
+  padding: 32px 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.07);
+}
+
+.signup-form input,
+.signup-form select {
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.signup-content h1 {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+/* Style guide for patient home page */
+.patient-home-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh; /* Adjusts vertical centering */
+  background: #fff;
+  margin: 60px auto 0 auto;
+  padding: 10px 10px;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.07);
+  max-width: 1500px;
 }

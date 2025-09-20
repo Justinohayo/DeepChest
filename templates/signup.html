@@ -10,18 +10,62 @@
   </head>
   <body>
     <!-- Main body content: form for signing up -->
-    <div class="center-content">
+    <div class="signup-content">
       <h1>Sign Up</h1>
       <form method="POST" action="/signup" class="signup-form">
-        <input type="text" name="username" placeholder="Username" required />
+        <!-- Clinic dropdown -->
+        <select name="clinicID" required>
+          <option value="" disabled selected>Select Clinic</option>
+          {% for clinic in clinics %}
+          <option value="{{ clinic.clinicID }}">
+            {{ clinic.clinicID }} ({{ clinic.city }}, {{ clinic.province }})
+          </option>
+          {% endfor %}
+        </select>
+        <!-- Doctor dropdown -->
+        <select name="doctorID" required>
+          <option value="" disabled selected>Select Doctor</option>
+          {% for doctor in doctors %}
+          <option value="{{ doctor.USERID }}">
+            Dr. {{ doctor.firstName }} {{ doctor.lastName }} (Clinic: {{
+            doctor.clinicID }})
+          </option>
+          {% endfor %}
+        </select>
+        <input type="text" name="firstName" placeholder="First Name" required />
+        <input type="text" name="lastName" placeholder="Last Name" required />
         <input type="email" name="email" placeholder="Email" required />
+        <input
+          type="text"
+          name="phoneNumber"
+          placeholder="Phone Number"
+          required
+        />
         <input
           type="password"
           name="password"
           placeholder="Password"
           required
         />
-        <button type="submit">Sign Up</button>
+        <!-- Birthday date picker -->
+        <input type="date" name="birthday" placeholder="Birthday" required />
+        <input type="text" name="address" placeholder="Address" required />
+        <input type="text" name="city" placeholder="City" required />
+        <input type="text" name="province" placeholder="Province" required />
+        <input
+          type="text"
+          name="postalCode"
+          placeholder="Postal Code"
+          required
+        />
+        <input
+          type="text"
+          name="insurance"
+          placeholder="Insurance Provider"
+          required
+        />
+        <!-- Submit button -->
+        <button type="submit" class="signup-btn">Sign Up</button>
       </form>
     </div>
   </body>

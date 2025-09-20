@@ -16,8 +16,8 @@ INSERT INTO `clinic` (`clinicID`,`city`,`province`,`postalCode`) VALUES
         Creates a Table for login that includes USERID, username, password, userType, and clinicID
         */
 CREATE TABLE `login` (
-  `USERID` varchar(50) NOT NULL,
-  `username` varchar(15) NOT NULL,
+  `USERID`  int(255) AUTO_INCREMENT,
+  `username` varchar(50) NOT NULL,
   `password` varchar(15) NOT NULL,
   `userType` varchar(15) NOT NULL,
   `clinicID` varchar(15) NOT NULL,
@@ -39,7 +39,7 @@ CREATE TABLE `doctor` (
   `lastName` varchar(50) NOT NULL,
   `email` varchar(50) NOT NULL,
   `phone` varchar(15) ,
-  `USERID` varchar(50) NOT NULL,
+  `USERID` int(255) NOT NULL,
    `clinicID` varchar(15) NOT NULL,
    PRIMARY KEY (USERID),
     FOREIGN KEY (USERID) REFERENCES login(USERID)
@@ -56,7 +56,7 @@ CREATE TABLE `patient`(
     `lastName` varchar(50) NOT NULL,
     `age` int(2),
     `dateofbirth` date,
-    `USERID` varchar(50) NOT NULL UNIQUE,
+    `USERID`int(255) ,
     `address` varchar(50) NOT NULL,
     `city` varchar(50) NOT NULL,
     `province` varchar(50) NOT NULL,
@@ -64,7 +64,7 @@ CREATE TABLE `patient`(
    `phone` varchar(20),
     `email` varchar(50) NOT NULL UNIQUE,
     `insurance` varchar(20),
-    `doctorID` varchar(20),
+    `doctorID`int(255),
     `childID`varchar(15) DEFAULT NULL,
      `clinicID` varchar(15) NOT NULL,
     PRIMARY KEY (USERID),
@@ -82,10 +82,10 @@ INSERT INTO `patient` (`firstName`, `lastName`, `age`,`dateofbirth`, `USERID`, `
         */
 CREATE TABLE `appointments` (
 `apptID` int(255) AUTO_INCREMENT,
-`patientID` varchar(50) NOT NULL,
+`patientID` int(255) NOT NULL,
 `appointment_date` date NOT NULL,
 `appointment_time` time NOT NULL,
-`doctorID` varchar(20),
+`doctorID` int(255),
 `symptoms` varchar(20),
 PRIMARY KEY (apptID),
   FOREIGN KEY (patientID) REFERENCES patient(USERID),
@@ -100,10 +100,11 @@ INSERT INTO `appointments` (`apptID`,`patientID`, `appointment_date`, `appointme
         Creates a Table for reports that includes reportID, patientID, doctorID, and files
         */
 CREATE TABLE `Reports` (
-  `reportID` varchar(50) NOT NULL,
-  `patientID` varchar(255) NOT NULL,
-  `doctorID` varchar(255),
+  `reportID` int(255) AUTO_INCREMENT NOT NULL,
+  `patientID` int(255) NOT NULL,
+  `doctorID` int(255),
   `files` varbinary(255),
+  PRIMARY KEY (reportID),
    FOREIGN KEY (patientID) REFERENCES patient(USERID),
    FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
@@ -112,7 +113,7 @@ CREATE TABLE `Reports` (
         Creates a Table for clinic admins that includes USERID and clinicID
         */
 CREATE TABLE `clinicadmin` (
-  `USERID` varchar(50) NOT NULL,
+  `USERID` int(255) NOT NULL,
  `clinicID` varchar(15) NOT NULL,
     FOREIGN KEY (USERID) REFERENCES login(USERID),
      FOREIGN KEY (clinicID) REFERENCES clinic(clinicID)
@@ -128,7 +129,7 @@ INSERT INTO `clinicadmin` (`USERID`,`clinicID`) VALUES
 CREATE TABLE `childLink` (
   `linkID` int(255) AUTO_INCREMENT,
   `childID` varchar(50) NOT NULL,
- `parentID` varchar(15) NOT NULL,
+ `parentID` int(255) NOT NULL,
  PRIMARY KEY (linkID),
     FOREIGN KEY (parentID) REFERENCES patient(USERID)
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
@@ -138,7 +139,7 @@ CREATE TABLE `childLink` (
         */
 CREATE TABLE `child` (
   `childID` varchar(50) NOT NULL,
- `parentID` varchar(15) NOT NULL,
+ `parentID` int(255) NOT NULL,
     FOREIGN KEY (parentID) REFERENCES patient(USERID)
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
@@ -146,10 +147,11 @@ CREATE TABLE `child` (
         Creates a Table for xrays that includes xrayID, patientID, doctorID, and files
         */
 CREATE TABLE `Xrays` (
-  `xrayID` varchar(50) NOT NULL,
-  `patientID` varchar(255) NOT NULL,
-  `doctorID` varchar(255),
+  `xrayID`int(255) AUTO_INCREMENT,
+  `patientID` int(255) NOT NULL,
+  `doctorID` int(255),
   `files` varbinary(255),
+  PRIMARY KEY (xrayID),
      FOREIGN KEY (patientID) REFERENCES patient(USERID),
    FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
@@ -158,8 +160,8 @@ CREATE TABLE `Xrays` (
         */
 CREATE TABLE `messages` (
 `messageID` int(255) AUTO_INCREMENT,
-`patientID` varchar(50) NOT NULL,
-`doctorID` varchar(20),
+`patientID` int(255) NOT NULL,
+`doctorID` int(255),
 `content` varchar(20),
 `time_sent` timestamp NOT NULL DEFAULT current_timestamp(),
 PRIMARY KEY (messageID),

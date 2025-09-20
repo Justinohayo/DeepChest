@@ -9,6 +9,13 @@
     <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
+    <!-- Logout message handling -->
+    {% with messages = get_flashed_messages() %} {% if messages %} {% for
+    message in messages %}
+    <script>
+      alert("{{ message }}");
+    </script>
+    {% endfor %} {% endif %} {% endwith %}
     <!-- Navigation bar setup -->
     <nav>
       <div class="logo">DeepChest</div>
@@ -18,17 +25,26 @@
       </div>
     </nav>
     <!-- Main body content -->
-    <div class="center-content">
-      <h1>Welcome to DeepChest!</h1>
-      <p>
-        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
-        tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
-        veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea
-        commodo consequat. Duis aute irure dolor in reprehenderit in voluptate
-        velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint
-        occaecat cupidatat non proident, sunt in culpa qui officia deserunt
-        mollit anim id est laborum
-      </p>
+    <div class="main-content">
+      <div class="left-content">
+        <h1>Welcome to DeepChest!</h1>
+        <p>
+          DeepChest is an AI-powered web application that helps healthcare
+          providers analyze chest X-rays quickly and accurately. By combining
+          advanced deep learning with intuitive design, DeepChest detects
+          conditions like pneumonia, tuberculosis, and COVID-19 while generating
+          heatmaps to highlight areas of concern. Designed for clinics, doctors,
+          and patients, the platform enables secure uploads, instant AI-assisted
+          predictions, and report generation with role-based access for data
+          privacy. DeepChest empowers smaller clinics, remote healthcare
+          providers, and medical learners with a cost-effective, accessible
+          diagnostic support tool—helping reduce wait times and improve early
+          treatment outcomes.
+        </p>
+      </div>
+      <div class="right-content">
+        <img src="/static/homexray.jpg" alt="Chest X-ray Example" />
+      </div>
     </div>
   </body>
 </html>

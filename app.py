@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 import mysql.connector
+import webbrowser
 
 app = Flask(__name__)
 app.secret_key = '1234'  # Needed for flash messages and sessions
@@ -15,9 +16,7 @@ db_config = {
 # Configures Route for the home page
 @app.route('/')
 def home():
-    if 'user_id' in session:
-        return render_template('index.html', username=session.get('username'))
-    return redirect(url_for('login'))
+    return render_template('index.html', username=session.get('username'))
 
 # Configures Route for the login page 
 @app.route('/login', methods=['GET', 'POST'])
@@ -83,13 +82,75 @@ def admin_home():
 #Route for signing up new users(Incomplete, just a placeholder)
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
+    import mysql.connector
+    clinics = []
+    doctors = []
     if request.method == 'POST':
-        username = request.form.get('username')
+        # Get form data
+        clinicID = request.form.get('clinicID')
+        doctorID = request.form.get('doctorID')
+        firstName = request.form.get('firstName')
+        lastName = request.form.get('lastName')
         email = request.form.get('email')
+        phoneNumber = request.form.get('phoneNumber')
         password = request.form.get('password')
-        # Add user registration logic here
-        return redirect(url_for('home'))
-    return render_template('signup.html')
+        birthday = request.form.get('birthday')
+        address = request.form.get('address')
+        city = request.form.get('city')
+        province = request.form.get('province')
+        postalCode = request.form.get('postalCode')
+        insurance = request.form.get('insurance')
+        username = email  # Or generate a username as needed
+        childID = None  # Assuming childID is optional or can be set later
+
+        # Connect to the database
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+
+        # Insert into login table (assuming userType is 'patient')
+        cursor.execute(
+            "INSERT INTO login (USERID, username, password, userType, clinicID) VALUES (%s, %s, %s, %s, %s)",
+            (None, username, password, 'patient', clinicID)
+        )
+        # Get the USERID of the newly inserted user
+        conn.commit()
+        cursor.execute("SELECT USERID FROM login WHERE username=%s", (username,))
+        user = cursor.fetchone()
+        user_id = user[0] if user else None
+
+        # Insert into patient table (if you have one)
+        # Uncomment and adjust the following if you have a patient table:
+        cursor.execute(
+           "INSERT INTO `patient` (`firstName`, `lastName`,`dateofbirth`, `USERID`, `address`, `city`, `province`, `postalCode`, `phone`, `email`,`insurance`,`doctorID`,`childID`,`clinicID`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s,%s,%s)",
+            (firstName, lastName, birthday, user_id, address, city, province, postalCode, phoneNumber, email, insurance, doctorID, childID, clinicID)
+         )
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        flash('Account created successfully! Please log in.')
+        return redirect(url_for('login'))
+    else:
+        # Fetch clinics from the database
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT clinicID, city, province FROM clinic")
+        clinics = cursor.fetchall()
+        # Fetch doctors from the database
+        cursor.execute("SELECT USERID, firstName, lastName, clinicID FROM doctor")
+        doctors = cursor.fetchall()
+        cursor.close()
+        conn.close()
+    return render_template('signup.html', clinics=clinics, doctors=doctors)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('You have been logged out.')
+    return redirect(url_for('home'))
+
 
 if __name__ == '__main__':
+    webbrowser.open('http://localhost:5000/')
     app.run(debug=True)
