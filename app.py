@@ -47,7 +47,19 @@ def login():
 
             # Redirect based on user type
             if user['userType'] == 'patient':
-                return redirect(url_for('patient_home'))
+                  conn = mysql.connector.connect(**db_config)
+                  cursor = conn.cursor(dictionary=True)
+                  cursor.execute("SELECT firstName, lastName FROM patient WHERE USERID = %s", (user['USERID'],))
+                  patient = cursor.fetchone()
+                  cursor.close()
+                  conn.close()
+                  if patient:
+                      session['firstName'] = patient['firstName']
+                      session['lastName'] = patient['lastName']
+                  else:
+                      session['firstName'] = user['username']
+                      session['lastName'] = ""
+                  return redirect(url_for('patient_home'))
             elif user['userType'] == 'doctor':
                 return redirect(url_for('doctor_home'))
             elif user['userType'] == 'clinicadmin':
@@ -59,25 +71,6 @@ def login():
             flash('Invalid username or password')
             return redirect(url_for('login'))
     return render_template('login.html')
-
-#Routes for each of the user types to their respective home pages. Used above in login route
-@app.route('/patient_home')
-def patient_home():
-    if session.get('userType') == 'patient':
-        return render_template('/patient/patienthome.html', username=session.get('username'))
-    return redirect(url_for('login'))
-
-@app.route('/doctor_home')
-def doctor_home():
-    if session.get('userType') == 'doctor':
-        return render_template('/doctor/doctorhome.html', username=session.get('username'))
-    return redirect(url_for('login'))
-
-@app.route('/admin_home')
-def admin_home():
-    if session.get('userType') == 'clinicadmin':
-        return render_template('/clinic_admin/adminhome.html', username=session.get('username'))
-    return redirect(url_for('login'))
 
 #Route for signing up new users(Incomplete, just a placeholder)
 @app.route('/signup', methods=['GET', 'POST'])
@@ -143,6 +136,81 @@ def signup():
         cursor.close()
         conn.close()
     return render_template('signup.html', clinics=clinics, doctors=doctors)
+
+
+#Routes for each of the user types to their respective home pages. Used above in login route
+@app.route('/patient_home')
+def patient_home():
+    if session.get('userType') == 'patient':
+        return render_template(
+            'patient/patienthome.html',
+            firstName=session.get('firstName'),
+            lastName=session.get('lastName'),
+            user_id=session.get('user_id')
+        )
+    return redirect(url_for('login'))
+
+@app.route('/doctor_home')
+def doctor_home():
+    if session.get('userType') == 'doctor':
+        return render_template('/doctor/doctorhome.html', username=session.get('username'))
+    return redirect(url_for('login'))
+
+@app.route('/admin_home')
+def admin_home():
+    if session.get('userType') == 'clinicadmin':
+        return render_template('/clinic_admin/adminhome.html', username=session.get('username'))
+    return redirect(url_for('login'))
+
+# Patient Appointments Page
+@app.route('/patient/appointments')
+def patient_appointments():
+    if session.get('userType') == 'patient':
+        return render_template(
+            'patient/p_appointments.html',
+            user_id=session.get('user_id')
+        )
+    return redirect(url_for('login'))
+
+# Patient Reports Page
+@app.route('/patient/reports')
+def patient_reports():
+    if session.get('userType') == 'patient':
+        return render_template(
+            'patient/myreports.html',
+            user_id=session.get('user_id')
+        )
+    return redirect(url_for('login'))
+
+# Patient Messages Page
+@app.route('/patient/messages')
+def patient_messages():
+    if session.get('userType') == 'patient':
+        return render_template(
+            'patient/messages.html',
+            user_id=session.get('user_id')
+        )
+    return redirect(url_for('login'))
+
+# Patient Notifications Page
+@app.route('/patient/notifications')
+def patient_notifications():
+    if session.get('userType') == 'patient':
+        return render_template(
+            'patient/notifications.html',
+            user_id=session.get('user_id')
+        )
+    return redirect(url_for('login'))
+
+# Patient Manage Account Page
+@app.route('/patient/account')
+def patient_account():
+    if session.get('userType') == 'patient':
+        return render_template(
+            'patient/p_modifyaccount.html',
+            user_id=session.get('user_id')
+        )
+    return redirect(url_for('login'))
 
 @app.route('/logout')
 def logout():

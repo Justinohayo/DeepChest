@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Patient Home - DeepChest</title>
+    <title>Patient Manage Appointments - DeepChest</title>
     <link rel="stylesheet" href="/static/style.css" />
     <link rel="stylesheet" href="/static/patient.css" />
   </head>
@@ -25,19 +25,7 @@
       </div>
     </nav>
     <div class="patient-home-content">
-      <h1>Welcome, {{ firstName }} {{ lastName }}!</h1>
-      <div class="search-bar-container">
-        <form method="GET" action="/patient_search">
-          <input
-            type="text"
-            name="query"
-            class="search-bar"
-            placeholder="Search for doctors, appointments, or reports..."
-            autocomplete="off"
-          />
-          <button type="submit" class="search-btn">Search</button>
-        </form>
-      </div>
+      <h1>Manage Appointments</h1>
     </div>
   </body>
 </html>
