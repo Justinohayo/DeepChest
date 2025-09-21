@@ -9,7 +9,7 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 db_config = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'test1234',
+    'password': '12345',
     'database': 'DeepChest'
 }
 

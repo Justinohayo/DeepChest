@@ -1,0 +1,8 @@
+This file is for frozen dependencies are all the library that is needed to be install on venv (vm)
+- boto3
+- flask
+- gunicorn
+- torch, torchvisoin (load & run the AI model)
+- pillow (image handling)
+- opencv-python-headless (resizing, cropping, preprocessing)
+- scikit-image, numpy?

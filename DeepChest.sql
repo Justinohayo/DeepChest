@@ -1,8 +1,8 @@
-  /*
-        Creates a Table for clinics that includes clinicID, city, province, and postalCode
+CREATE SCHEMA `DeepChest_DB` ;
+  /*Creates a Table for clinics that includes clinicID, city, province, and postalCode
         */
 CREATE TABLE `clinic` (
- `clinicID` varchar(15) NOT NULL,
+ `clinicID` varchar(15) NOT NULL UNIQUE,
   `city` varchar(15) NOT NULL,
    `province` varchar(15) NOT NULL,
     `postalCode` varchar(15) NOT NULL,
@@ -16,7 +16,7 @@ INSERT INTO `clinic` (`clinicID`,`city`,`province`,`postalCode`) VALUES
         Creates a Table for login that includes USERID, username, password, userType, and clinicID
         */
 CREATE TABLE `login` (
-  `USERID`  int(255) AUTO_INCREMENT,
+  `USERID`  int(255) AUTO_INCREMENT UNIQUE,
   `username` varchar(50) NOT NULL,
   `password` varchar(15) NOT NULL,
   `userType` varchar(15) NOT NULL,
@@ -81,7 +81,7 @@ INSERT INTO `patient` (`firstName`, `lastName`, `age`,`dateofbirth`, `USERID`, `
         Creates a Table for appointments that includes apptID, patientID, appointment_date, appointment_time, doctorID, and symptoms
         */
 CREATE TABLE `appointments` (
-`apptID` int(255) AUTO_INCREMENT,
+`apptID` int(255) AUTO_INCREMENT UNIQUE,
 `patientID` int(255) NOT NULL,
 `appointment_date` date NOT NULL,
 `appointment_time` time NOT NULL,
@@ -100,7 +100,7 @@ INSERT INTO `appointments` (`apptID`,`patientID`, `appointment_date`, `appointme
         Creates a Table for reports that includes reportID, patientID, doctorID, and files
         */
 CREATE TABLE `Reports` (
-  `reportID` int(255) AUTO_INCREMENT NOT NULL,
+  `reportID` int(255) AUTO_INCREMENT NOT NULL UNIQUE,
   `patientID` int(255) NOT NULL,
   `doctorID` int(255),
   `files` varbinary(255),
@@ -127,8 +127,7 @@ INSERT INTO `clinicadmin` (`USERID`,`clinicID`) VALUES
         Creates a Table for child links that includes linkID, childID, and parentID
         */
 CREATE TABLE `childLink` (
-  `linkID` int(255) AUTO_INCREMENT,
-  `childID` varchar(50) NOT NULL,
+  `linkID` int(255) AUTO_INCREMENT UNIQUE,
  `parentID` int(255) NOT NULL,
  PRIMARY KEY (linkID),
     FOREIGN KEY (parentID) REFERENCES patient(USERID)
@@ -138,16 +137,20 @@ CREATE TABLE `childLink` (
         Creates a Table for child that includes childID and parentID
         */
 CREATE TABLE `child` (
-  `childID` varchar(50) NOT NULL,
+  `childID` varchar(50) AUTO_INCREMENT NOT NULL UNIQUE,
+ `linkID` int(255) NOT NULL,
  `parentID` int(255) NOT NULL,
+	PRIMARY KEY (childID)
     FOREIGN KEY (parentID) REFERENCES patient(USERID)
+	FOREIGN KEY (linkID) REFERENCES childlink(linkID)
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 /*
         Creates a Table for xrays that includes xrayID, patientID, doctorID, and files
         */
+/*Add pointers for S3 in this table, drop it before editing*/
 CREATE TABLE `Xrays` (
-  `xrayID`int(255) AUTO_INCREMENT,
+  `xrayID`int(255) AUTO_INCREMENT UNIQUE,
   `patientID` int(255) NOT NULL,
   `doctorID` int(255),
   `files` varbinary(255),
@@ -159,10 +162,10 @@ CREATE TABLE `Xrays` (
         Creates a Table for messages that includes messageID, patientID, doctorID, content, and time_sent
         */
 CREATE TABLE `messages` (
-`messageID` int(255) AUTO_INCREMENT,
+`messageID` int(255) AUTO_INCREMENT UNIQUE,
 `patientID` int(255) NOT NULL,
 `doctorID` int(255),
-`content` varchar(20),
+`content` varchar(255),
 `time_sent` timestamp NOT NULL DEFAULT current_timestamp(),
 PRIMARY KEY (messageID),
    FOREIGN KEY (patientID) REFERENCES patient(USERID),
