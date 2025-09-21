@@ -9,7 +9,7 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 db_config = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'test1234',
+    'password': 'Electron1704.',
     'database': 'DeepChest'
 }
 
@@ -150,12 +150,52 @@ def patient_home():
         )
     return redirect(url_for('login'))
 
+# Doctor Home Page
 @app.route('/doctor_home')
 def doctor_home():
     if session.get('userType') == 'doctor':
-        return render_template('/doctor/doctorhome.html', username=session.get('username'))
+        return render_template('doctor/doctorhome.html', username=session.get('username'))
     return redirect(url_for('login'))
 
+# Doctor Appointments Page
+@app.route('/doctor/appointments')
+def doctor_appointments():
+    if session.get('userType') == 'doctor':
+        return render_template('doctor/doctor_appointments.html', username=session.get('username'))
+    return redirect(url_for('login'))
+
+# Doctor Patients Page
+@app.route('/doctor/patients')
+def doctor_patients():
+    if session.get('userType') == 'doctor':
+        return render_template('doctor/doctor_patients.html', username=session.get('username'))
+    return redirect(url_for('login'))
+
+# Doctor Reports Page
+@app.route('/doctor/reports')
+def doctor_reports():
+    if session.get('userType') == 'doctor':
+        return render_template('doctor/doctor_reports.html', username=session.get('username'))
+    return redirect(url_for('login'))
+
+# Doctor AI Diagnosis Page
+@app.route('/doctor/ai_diagnosis')
+def doctor_ai_diagnosis():
+    if session.get('userType') == 'doctor':
+        return render_template('doctor/doctor_ai_diagnosis.html', username=session.get('username'))
+    return redirect(url_for('login'))
+
+# Doctor Account Page
+@app.route('/doctor/account')
+def doctor_account():
+    if session.get('userType') == 'doctor':
+        return render_template('doctor/doctor_account.html', username=session.get('username'))
+    return redirect(url_for('login'))
+
+
+
+
+# Clinic Admin Home Page
 @app.route('/admin_home')
 def admin_home():
     if session.get('userType') == 'clinicadmin':
