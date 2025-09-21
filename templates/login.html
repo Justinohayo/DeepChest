@@ -9,6 +9,11 @@
   </head>
   <!-- Main body content, fields for username and password to log users in -->
   <body>
+    {% extends "navigationbase.html" %}
+    <!-- Main body content -->
+    {% block title %}DeepChest - Home{% endblock %}
+
+    {% block content %}
     <!-- Account Created message handling -->
     {% with messages = get_flashed_messages() %} {% if messages %} {% for
     message in messages %}
@@ -34,5 +39,6 @@
         <button type="button" class="signup-btn">Sign Up</button>
       </a>
     </div>
+    {% endblock %}
   </body>
 </html>

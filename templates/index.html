@@ -17,18 +17,11 @@
     </script>
     {% endfor %} {% endif %} {% endwith %}
     <!-- Navigation bar setup with logo -->
-    <nav>
-  <div class="logo">
-    <link rel="stylesheet" href="{{ url_for('static', filename='logostyle.css') }}">
-    <img src="{{ url_for('static', filename='logo_DeepChest.png') }}" class="logo-img">
-    <div class="logo-text">DeepChest</div>
-  </div>
-  <div class="nav-links">
-    <a href="/login">Login</a>
-    <a href="/signup">Sign Up</a>
-  </div>
-</nav>
+   {% extends "navigationbase.html" %}
     <!-- Main body content -->
+     {% block title %}DeepChest - Home{% endblock %}
+
+{% block content %}
     <div class="main-content">
       <div class="left-content">
         <h1>Welcome to DeepChest!</h1>
@@ -50,5 +43,6 @@
         <img src="/static/homexray.jpg" alt="Chest X-ray Example" />
       </div>
     </div>
+    {% endblock %}
   </body>
 </html>

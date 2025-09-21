@@ -9,6 +9,11 @@
     <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
+    {% extends "navigationbase.html" %}
+    <!-- Main body content -->
+    {% block title %}DeepChest - Home{% endblock %}
+
+    {% block content %}
     <!-- Main body content: form for signing up -->
     <div class="signup-content">
       <h1>Sign Up</h1>
@@ -68,5 +73,6 @@
         <button type="submit" class="signup-btn">Sign Up</button>
       </form>
     </div>
+    {% endblock %}
   </body>
 </html>
