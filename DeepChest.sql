@@ -1,5 +1,5 @@
-CREATE SCHEMA `DeepChest_DB` ;
-  /*Creates a Table for clinics that includes clinicID, city, province, and postalCode
+/*
+        Creates a Table for clinic that includes clinicID, city, province, and postalCode
         */
 CREATE TABLE `clinic` (
  `clinicID` varchar(15) NOT NULL UNIQUE,

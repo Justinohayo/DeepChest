@@ -27,12 +27,12 @@
     <div class="patient-home-content">
       <h1>Welcome, {{ firstName }} {{ lastName }}!</h1>
       <div class="search-bar-container">
-        <form method="GET" action="/patient_search">
+        <form method="GET" action="/search">
           <input
             type="text"
             name="query"
             class="search-bar"
-            placeholder="Search for doctors, appointments, or reports..."
+            placeholder="Search for appointments, or reports..."
             autocomplete="off"
           />
           <button type="submit" class="search-btn">Search</button>
