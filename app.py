@@ -208,11 +208,67 @@ def doctor_home():
     return redirect(url_for('login'))
 
 # Doctor Appointments Page
+# Doctor Appointments List
 @app.route('/doctor/appointments')
 def doctor_appointments():
-    if session.get('userType') == 'doctor':
-        return render_template('doctor/doctor_appointments.html', username=session.get('username'))
-    return redirect(url_for('login'))
+    if session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    # Join appointments with patient info
+    cursor.execute("""
+        SELECT a.apptID, a.appointment_date, a.appointment_time, a.symptoms,
+               p.firstName, p.lastName
+        FROM appointments a
+        JOIN patient p ON a.patientID = p.USERID
+        ORDER BY a.appointment_date, a.appointment_time
+    """)
+    appointments = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return render_template('doctor/doctor_appointments.html',
+                           appointments=appointments,
+                           username=session.get('username'))
+
+
+# Doctor Appointment Detail Page
+@app.route('/doctor/appointments/detail')
+def doctor_appointments_detail():
+    if session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+
+    apptID = request.args.get('apptID')
+    if not apptID:
+        flash("No appointment selected.")
+        return redirect(url_for('doctor_appointments'))
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    # Get full appointment + patient info
+    cursor.execute("""
+        SELECT a.apptID, a.appointment_date, a.appointment_time, a.symptoms,
+               p.firstName, p.lastName, p.dateofbirth, p.phone, p.email
+        FROM appointments a
+        JOIN patient p ON a.patientID = p.USERID
+        WHERE a.apptID = %s
+    """, (apptID,))
+    appointment = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if not appointment:
+        flash("Appointment not found.")
+        return redirect(url_for('doctor_appointments'))
+
+    return render_template('doctor/doctor_appointment_detail.html',
+                           appointment=appointment,
+                           username=session.get('username'))
 
 # Doctor Patients Page
 @app.route('/doctor/patients')
