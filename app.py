@@ -228,12 +228,33 @@ def doctor_reports():
         return render_template('doctor/doctor_reports.html', username=session.get('username'))
     return redirect(url_for('login'))
 
+
 # Doctor AI Diagnosis Page
-@app.route('/doctor/ai_diagnosis')
+@app.route('/doctor/ai_diagnosis', methods=['GET', 'POST'])
 def doctor_ai_diagnosis():
-    if session.get('userType') == 'doctor':
-        return render_template('doctor/doctor_ai_diagnosis.html', username=session.get('username'))
-    return redirect(url_for('login'))
+    if session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+
+    prediction = None
+
+    if request.method == 'POST':
+        if 'xray' not in request.files:
+            flash('No file uploaded.')
+            return redirect(request.url)
+
+        file = request.files['xray']
+        if file.filename == '':
+            flash('No selected file.')
+            return redirect(request.url)
+
+        # Simulated result
+        prediction = "AI Analysis: Possible Pneumonia Detected"
+
+    return render_template(
+        'doctor/doctor_ai_diagnosis.html',
+        username=session.get('username'),
+        prediction=prediction
+    )
 
 # Doctor Account Page
 @app.route('/doctor/account')
