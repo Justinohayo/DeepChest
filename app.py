@@ -190,15 +190,53 @@ def patient_notifications():
         )
     return redirect(url_for('login'))
 
-# Patient Manage Account Page
-@app.route('/patient/account')
+
+# Patient Manage Account Page (GET: pre-fill, POST: update)
+@app.route('/patient/account', methods=['GET', 'POST'])
 def patient_account():
-    if session.get('userType') == 'patient':
-        return render_template(
-            'patient/p_modifyaccount.html',
-            user_id=session.get('user_id')
-        )
-    return redirect(url_for('login'))
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    if request.method == 'POST':
+        # Get updated form data
+        firstName = request.form.get('firstName')
+        lastName = request.form.get('lastName')
+        email = request.form.get('email')
+        phoneNumber = request.form.get('phoneNumber')
+        password = request.form.get('password')
+        birthday = request.form.get('birthday')
+        address = request.form.get('address')
+        city = request.form.get('city')
+        province = request.form.get('province')
+        postalCode = request.form.get('postalCode')
+        insurance = request.form.get('insurance')
+        # Update patient table
+        cursor.execute("""
+            UPDATE patient SET firstName=%s, lastName=%s, dateofbirth=%s, address=%s, city=%s, province=%s, postalCode=%s, phone=%s, email=%s, insurance=%s WHERE USERID=%s
+        """, (firstName, lastName, birthday, address, city, province, postalCode, phoneNumber, email, insurance, user_id))
+        # Update login table (password and email/username)
+        cursor.execute("""
+            UPDATE login SET username=%s, password=%s WHERE USERID=%s
+        """, (email, password, user_id))
+        conn.commit()
+        flash('Account updated successfully!')
+        # Re-fetch updated info for display
+    cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id,))
+    patient = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return render_template('patient/p_modifyaccount.html', patient=patient)
+
+# Add Child Page for Patient
+@app.route('/patient/add-child', methods=['GET', 'POST'])
+def add_child():
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    # You can add POST logic here to handle child registration
+    return render_template('patient/add-child.html')
+
 
 # Doctor Home Page
 @app.route('/doctor_home')
