@@ -7,10 +7,17 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 
 # Database connection config
 db_config = {
+<<<<<<< HEAD
     'host': 'mysql-database.cjogeuu2gnn5.ca-central-1.rds.amazonaws.com',
     'user': 'admin',
     'password': 'AdminIPA',
     'database': 'DeepChest_DB'
+=======
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'test1234',
+    'database': 'DeepChest'
+>>>>>>> 273f64180f56e534331ef5dfc17d95e6a88e0682
 }
 
 # Configures Route for the home page
@@ -150,58 +157,6 @@ def patient_home():
         )
     return redirect(url_for('login'))
 
-# Doctor Home Page
-@app.route('/doctor_home')
-def doctor_home():
-    if session.get('userType') == 'doctor':
-        return render_template('doctor/doctorhome.html', username=session.get('username'))
-    return redirect(url_for('login'))
-
-# Doctor Appointments Page
-@app.route('/doctor/appointments')
-def doctor_appointments():
-    if session.get('userType') == 'doctor':
-        return render_template('doctor/doctor_appointments.html', username=session.get('username'))
-    return redirect(url_for('login'))
-
-# Doctor Patients Page
-@app.route('/doctor/patients')
-def doctor_patients():
-    if session.get('userType') == 'doctor':
-        return render_template('doctor/doctor_patients.html', username=session.get('username'))
-    return redirect(url_for('login'))
-
-# Doctor Reports Page
-@app.route('/doctor/reports')
-def doctor_reports():
-    if session.get('userType') == 'doctor':
-        return render_template('doctor/doctor_reports.html', username=session.get('username'))
-    return redirect(url_for('login'))
-
-# Doctor AI Diagnosis Page
-@app.route('/doctor/ai_diagnosis')
-def doctor_ai_diagnosis():
-    if session.get('userType') == 'doctor':
-        return render_template('doctor/doctor_ai_diagnosis.html', username=session.get('username'))
-    return redirect(url_for('login'))
-
-# Doctor Account Page
-@app.route('/doctor/account')
-def doctor_account():
-    if session.get('userType') == 'doctor':
-        return render_template('doctor/doctor_account.html', username=session.get('username'))
-    return redirect(url_for('login'))
-
-
-
-
-# Clinic Admin Home Page
-@app.route('/admin_home')
-def admin_home():
-    if session.get('userType') == 'clinicadmin':
-        return render_template('/clinic_admin/adminhome.html', username=session.get('username'))
-    return redirect(url_for('login'))
-
 # Patient Appointments Page
 @app.route('/patient/appointments')
 def patient_appointments():
@@ -242,15 +197,180 @@ def patient_notifications():
         )
     return redirect(url_for('login'))
 
-# Patient Manage Account Page
-@app.route('/patient/account')
+
+# Patient Manage Account Page (GET: pre-fill, POST: update)
+@app.route('/patient/account', methods=['GET', 'POST'])
 def patient_account():
-    if session.get('userType') == 'patient':
-        return render_template(
-            'patient/p_modifyaccount.html',
-            user_id=session.get('user_id')
-        )
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    if request.method == 'POST':
+        # Get updated form data
+        firstName = request.form.get('firstName')
+        lastName = request.form.get('lastName')
+        email = request.form.get('email')
+        phoneNumber = request.form.get('phoneNumber')
+        password = request.form.get('password')
+        birthday = request.form.get('birthday')
+        address = request.form.get('address')
+        city = request.form.get('city')
+        province = request.form.get('province')
+        postalCode = request.form.get('postalCode')
+        insurance = request.form.get('insurance')
+        # Update patient table
+        cursor.execute("""
+            UPDATE patient SET firstName=%s, lastName=%s, dateofbirth=%s, address=%s, city=%s, province=%s, postalCode=%s, phone=%s, email=%s, insurance=%s WHERE USERID=%s
+        """, (firstName, lastName, birthday, address, city, province, postalCode, phoneNumber, email, insurance, user_id))
+        # Update login table (password and email/username)
+        cursor.execute("""
+            UPDATE login SET username=%s, password=%s WHERE USERID=%s
+        """, (email, password, user_id))
+        conn.commit()
+        flash('Account updated successfully!')
+        # Re-fetch updated info for display
+    cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id,))
+    patient = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return render_template('patient/p_modifyaccount.html', patient=patient)
+
+# Add Child Page for Patient
+@app.route('/patient/add-child', methods=['GET', 'POST'])
+def add_child():
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    # You can add POST logic here to handle child registration
+    return render_template('patient/add-child.html')
+
+
+# Doctor Home Page
+@app.route('/doctor_home')
+def doctor_home():
+    if session.get('userType') == 'doctor':
+        return render_template('doctor/doctorhome.html', username=session.get('username'))
     return redirect(url_for('login'))
+
+# Doctor Appointments Page
+# Doctor Appointments List
+@app.route('/doctor/appointments')
+def doctor_appointments():
+    if session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    # Join appointments with patient info
+    cursor.execute("""
+        SELECT a.apptID, a.appointment_date, a.appointment_time, a.symptoms,
+               p.firstName, p.lastName
+        FROM appointments a
+        JOIN patient p ON a.patientID = p.USERID
+        ORDER BY a.appointment_date, a.appointment_time
+    """)
+    appointments = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return render_template('doctor/doctor_appointments.html',
+                           appointments=appointments,
+                           username=session.get('username'))
+
+
+# Doctor Appointment Detail Page
+@app.route('/doctor/appointments/detail')
+def doctor_appointments_detail():
+    if session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+
+    apptID = request.args.get('apptID')
+    if not apptID:
+        flash("No appointment selected.")
+        return redirect(url_for('doctor_appointments'))
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    # Get full appointment + patient info
+    cursor.execute("""
+        SELECT a.apptID, a.appointment_date, a.appointment_time, a.symptoms,
+               p.firstName, p.lastName, p.dateofbirth, p.phone, p.email
+        FROM appointments a
+        JOIN patient p ON a.patientID = p.USERID
+        WHERE a.apptID = %s
+    """, (apptID,))
+    appointment = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if not appointment:
+        flash("Appointment not found.")
+        return redirect(url_for('doctor_appointments'))
+
+    return render_template('doctor/doctor_appointment_detail.html',
+                           appointment=appointment,
+                           username=session.get('username'))
+
+# Doctor Patients Page
+@app.route('/doctor/patients')
+def doctor_patients():
+    if session.get('userType') == 'doctor':
+        return render_template('doctor/doctor_patients.html', username=session.get('username'))
+    return redirect(url_for('login'))
+
+# Doctor Reports Page
+@app.route('/doctor/reports')
+def doctor_reports():
+    if session.get('userType') == 'doctor':
+        return render_template('doctor/doctor_reports.html', username=session.get('username'))
+    return redirect(url_for('login'))
+
+
+# Doctor AI Diagnosis Page
+@app.route('/doctor/ai_diagnosis', methods=['GET', 'POST'])
+def doctor_ai_diagnosis():
+    if session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+
+    prediction = None
+
+    if request.method == 'POST':
+        if 'xray' not in request.files:
+            flash('No file uploaded.')
+            return redirect(request.url)
+
+        file = request.files['xray']
+        if file.filename == '':
+            flash('No selected file.')
+            return redirect(request.url)
+
+        # Simulated result
+        prediction = "AI Analysis: Possible Pneumonia Detected"
+
+    return render_template(
+        'doctor/doctor_ai_diagnosis.html',
+        username=session.get('username'),
+        prediction=prediction
+    )
+
+# Doctor Account Page
+@app.route('/doctor/account')
+def doctor_account():
+    if session.get('userType') == 'doctor':
+        return render_template('doctor/doctor_account.html', username=session.get('username'))
+    return redirect(url_for('login'))
+
+# Clinic Admin Home Page
+@app.route('/admin_home')
+def admin_home():
+    if session.get('userType') == 'clinicadmin':
+        return render_template('/clinic_admin/adminhome.html', username=session.get('username'))
+    return redirect(url_for('login'))
+
 
 @app.route('/logout')
 def logout():
@@ -258,6 +378,140 @@ def logout():
     flash('You have been logged out.')
     return redirect(url_for('home'))
 
+# Search functionality for all users
+@app.route('/search')
+def search():
+    query = request.args.get('query', '').strip()
+    if not query:
+        return render_template("search_results.html", query=query, results={})
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+
+    # Search appointments table (search by symptoms or appointment_date)
+    cursor.execute("""
+        SELECT apptID, patientID, appointment_date, appointment_time, doctorID, symptoms
+        FROM appointments
+        WHERE symptoms LIKE %s OR appointment_date LIKE %s
+    """, (f"%{query}%", f"%{query}%"))
+    appointments = cursor.fetchall()
+
+    # Search Reports table (search by reportID or patientID)
+    cursor.execute("""
+        SELECT reportID, patientID, doctorID
+        FROM Reports
+        WHERE CAST(reportID AS CHAR) LIKE %s OR CAST(patientID AS CHAR) LIKE %s
+    """, (f"%{query}%", f"%{query}%"))
+    reports = cursor.fetchall()
+
+
+    cursor.close()
+    conn.close()
+
+    results = {
+        "appointments": appointments,
+        "reports": reports
+    }
+
+    # Pass userType and user info for dynamic navbar
+    user_type = session.get('userType')
+    username = session.get('username')
+    first_name = session.get('firstName')
+    last_name = session.get('lastName')
+    return render_template(
+        "search_results.html",
+        query=query,
+        results=results,
+        user_type=user_type,
+        username=username,
+        first_name=first_name,
+        last_name=last_name
+    )
+
+# Appointment route for linking search results to appointment page with ability to show details
+@app.route('/patient/appointments/detail')
+def p_appointments_search():
+    apptID = request.args.get('apptID')
+    if not apptID or session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM appointments WHERE apptID = %s", (apptID,))
+    appointment = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return render_template('patient/p_appointments.html', appointment=appointment)
+
+# Appointment route for doctor to view appointment details on appointment page
+@app.route('/doctor/appointments/detail')
+def doctor_appointments_search():
+    apptID = request.args.get('apptID')
+    if not apptID or session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM appointments WHERE apptID = %s", (apptID,))
+    appointment = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return render_template('doctor/doctor_appointments.html', appointment=appointment)
+
+# Appointment route for clinic admin to view appointment details on appointment page
+@app.route('/admin/appointments/detail')
+def admin_appointments_search():
+    apptID = request.args.get('apptID')
+    if not apptID or session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM appointments WHERE apptID = %s", (apptID,))
+    appointment = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return render_template('clinic_admin/AppointmentAdmin.html', appointment=appointment)
+
+# Report route for patient to view report details on reports page
+@app.route('/patient/reports/detail')
+def patient_reports_search():
+    reportID = request.args.get('reportID')
+    if not reportID or session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM Reports WHERE reportID = %s", (reportID,))
+    report = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return render_template('patient/myreports.html', report=report)
+
+# Report route for doctor to view report details on reports page
+@app.route('/doctor/reports/detail')
+def doctor_reports_search():
+    reportID = request.args.get('reportID')
+    if not reportID or session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM Reports WHERE reportID = %s", (reportID,))
+    report = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return render_template('doctor/doctor_reports.html', report=report)
+
+# Report route for clinic admin to view report details on reports page
+@app.route('/admin/reports/detail')
+def admin_reports_search():
+    reportID = request.args.get('reportID')
+    if not reportID or session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM Reports WHERE reportID = %s", (reportID,))
+    report = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return render_template('clinic_admin/ManageReports.html', report=report)
 
 if __name__ == '__main__':
     app.run(debug=True)

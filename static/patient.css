@@ -12,3 +12,75 @@
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.07);
   max-width: 1500px;
 }
+/* Style guide for modify account page */
+/* Layout for the modify account section */
+.modify-account-flex {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 120px;
+}
+/* Style guide for the modify account form */
+.modify-account-form {
+  flex: 1;
+  min-width: 320px;
+  max-width: 500px;
+}
+
+/* Style guide for the modify account form elements */
+.modify-account-form-style {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 24px;
+  max-width: 600px;
+  background: #fff;
+  padding: 32px 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.07);
+}
+
+.modify-account-form-style button {
+  grid-column: 1 / -1; /* Span both columns */
+  justify-self: center; /* Center the button horizontally */
+  width: 50%; /* Optional: make the button narrower */
+  margin-top: 20px;
+}
+
+.modify-account-form-style input,
+.modify-account-form-style select {
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+/* Style guide for the register child button section of the modify account page */
+.register-child-btn-container {
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  margin-top: 150px;
+}
+
+/* Style guide for the register child button */
+.register-child-btn {
+  padding: 18px 32px;
+  font-size: 1.1em;
+  background: #222;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Style guide for the modify account title */
+.modify-account-title {
+  text-align: center;
+  margin-bottom: 32px;
+  font-size: 2.1em;
+  font-weight: 600;
+  color: #222;
+}
