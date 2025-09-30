@@ -382,21 +382,46 @@ def search():
     cursor = conn.cursor(dictionary=True)
 
 
-    # Search appointments table (search by symptoms or appointment_date)
-    cursor.execute("""
-        SELECT apptID, patientID, appointment_date, appointment_time, doctorID, symptoms
-        FROM appointments
-        WHERE symptoms LIKE %s OR appointment_date LIKE %s
-    """, (f"%{query}%", f"%{query}%"))
-    appointments = cursor.fetchall()
 
-    # Search Reports table (search by reportID or patientID)
-    cursor.execute("""
-        SELECT reportID, patientID, doctorID
-        FROM Reports
-        WHERE CAST(reportID AS CHAR) LIKE %s OR CAST(patientID AS CHAR) LIKE %s
-    """, (f"%{query}%", f"%{query}%"))
-    reports = cursor.fetchall()
+    user_type = session.get('userType')
+    user_id = session.get('user_id')
+
+    if user_type == 'patient':
+        # Only show appointments and reports for this patient, include patient name
+        cursor.execute("""
+            SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
+                   p.firstName, p.lastName
+            FROM appointments a
+            JOIN patient p ON a.patientID = p.USERID
+            WHERE (a.symptoms LIKE %s OR a.appointment_date LIKE %s)
+              AND a.patientID = %s
+        """, (f"%{query}%", f"%{query}%", user_id))
+        appointments = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT reportID, patientID, doctorID
+            FROM Reports
+            WHERE (CAST(reportID AS CHAR) LIKE %s OR CAST(patientID AS CHAR) LIKE %s)
+              AND patientID = %s
+        """, (f"%{query}%", f"%{query}%", user_id))
+        reports = cursor.fetchall()
+    else:
+        # Search all appointments and reports, include patient name
+        cursor.execute("""
+            SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
+                   p.firstName, p.lastName
+            FROM appointments a
+            JOIN patient p ON a.patientID = p.USERID
+            WHERE a.symptoms LIKE %s OR a.appointment_date LIKE %s
+        """, (f"%{query}%", f"%{query}%"))
+        appointments = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT reportID, patientID, doctorID
+            FROM Reports
+            WHERE CAST(reportID AS CHAR) LIKE %s OR CAST(patientID AS CHAR) LIKE %s
+        """, (f"%{query}%", f"%{query}%"))
+        reports = cursor.fetchall()
 
 
     cursor.close()

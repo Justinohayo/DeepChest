@@ -28,6 +28,7 @@ CREATE TABLE `login` (
  -- adds rows of data to the login table for each user type
 INSERT INTO `login` ( `USERID`,`username`, `password`, `userType`, `clinicID`) VALUES
 ('111','treddy','1234', 'patient','clinic1'),
+('112','example','1234', 'patient','clinic1'),
 ('222','doc1','1234', 'doctor','clinic1'),
 ('333','admin1','1234', 'clinicadmin','clinic1');
 
@@ -75,7 +76,8 @@ CREATE TABLE `patient`(
 
  -- adds data to the patient table
 INSERT INTO `patient` (`firstName`, `lastName`, `age`,`dateofbirth`, `USERID`, `address`, `city`, `province`, `postalCode`, `phone`, `email`,`insurance`,`doctorID`,`childID`,`clinicID`) VALUES
-('Theisen', 'Reddy', '23','2001-08-25', '111', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'treddy@example.com','Blue Cross','222','','clinic1');
+('Theisen', 'Reddy', '23','2001-08-25', '111', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'treddy@example.com','Blue Cross','222','','clinic1'),
+('Example', 'Person', '23','2001-08-25', '112', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'example@example.com','Blue Cross','222','','clinic1');
 
 /*
         Creates a Table for appointments that includes apptID, patientID, appointment_date, appointment_time, doctorID, and symptoms
@@ -94,7 +96,8 @@ PRIMARY KEY (apptID),
 
  -- adds data to the appointments table
 INSERT INTO `appointments` (`apptID`,`patientID`, `appointment_date`, `appointment_time`, `doctorID`,`symptoms`) VALUES
-(1,111,  '2024-03-11', '14:39:00','222','flu like');
+(1,111,  '2024-03-11', '14:39:00','222','flu like'),
+(2,112,  '2024-03-12', '10:00:00','222','coughing');
 
 /*
         Creates a Table for reports that includes reportID, patientID, doctorID, and files
@@ -137,11 +140,11 @@ CREATE TABLE `childLink` (
         Creates a Table for child that includes childID and parentID
         */
 CREATE TABLE `child` (
-  `childID` varchar(50) AUTO_INCREMENT NOT NULL UNIQUE,
+  `childID` int(50) AUTO_INCREMENT NOT NULL UNIQUE,
  `linkID` int(255) NOT NULL,
  `parentID` int(255) NOT NULL,
-	PRIMARY KEY (childID)
-    FOREIGN KEY (parentID) REFERENCES patient(USERID)
+	PRIMARY KEY (childID),
+    FOREIGN KEY (parentID) REFERENCES patient(USERID),
 	FOREIGN KEY (linkID) REFERENCES childlink(linkID)
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 

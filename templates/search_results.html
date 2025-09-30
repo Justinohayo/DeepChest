@@ -69,40 +69,73 @@
       <!-- Section for Appointments shows results as links -->
       {% if results.appointments %}
       <h3>Appointments</h3>
-      <ul>
+      <table class="search-table">
+        <thead>
+          <tr>
+            <th>Patient Name</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Symptoms</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
         {% for a in results.appointments %}
-        <li>
-          <a
-            href="{% if user_type == 'patient' %}{{ url_for('p_appointments_search', apptID=a.apptID) }}
-                  {% elif user_type == 'doctor' %}{{ url_for('doctor_appointments_search', apptID=a.apptID) }}
-                  {% elif user_type == 'clinicadmin' %}{{ url_for('admin_appointments_search', apptID=a.apptID) }}
-                  {% else %}#{% endif %}"
-          >
-            Appointment ID: {{ a.apptID }}, Patient ID: {{ a.patientID }}, Date:
-            {{ a.appointment_date }}, Time: {{ a.appointment_time }}, Doctor ID:
-            {{ a.doctorID }}, Symptoms: {{ a.symptoms }}
-          </a>
-        </li>
+          <tr>
+            <td>
+              {% if a.firstName and a.lastName %}
+                {{ a.firstName }} {{ a.lastName }}
+              {% elif a.patientName %}
+                {{ a.patientName }}
+              {% else %}
+                Patient ID: {{ a.patientID }}
+              {% endif %}
+            </td>
+            <td>{{ a.appointment_date }}</td>
+            <td>{{ a.appointment_time }}</td>
+            <td>{{ a.symptoms }}</td>
+            <td>
+              <a
+                href="{% if user_type == 'patient' %}{{ url_for('p_appointments_search', apptID=a.apptID) }}
+                      {% elif user_type == 'doctor' %}{{ url_for('doctor_appointments_search', apptID=a.apptID) }}
+                      {% elif user_type == 'clinicadmin' %}{{ url_for('admin_appointments_search', apptID=a.apptID) }}
+                      {% else %}#{% endif %}"
+              >View</a>
+            </td>
+          </tr>
         {% endfor %}
-      </ul>
+        </tbody>
+      </table>
       {% endif %} {% if results.reports %}
       <!-- Section for Reports shows results as links -->
       <h3>Reports</h3>
-      <ul>
+      <table class="search-table">
+        <thead>
+          <tr>
+            <th>Report ID</th>
+            <th>Patient ID</th>
+            <th>Doctor ID</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
         {% for r in results.reports %}
-        <li>
-          <a
-            href="{% if user_type == 'patient' %}{{ url_for('patient_reports_search', reportID=r.reportID) }}
-                  {% elif user_type == 'doctor' %}{{ url_for('doctor_reports_search', reportID=r.reportID) }}
-                  {% elif user_type == 'clinicadmin' %}{{ url_for('admin_reports_search', reportID=r.reportID) }}
-                  {% else %}#{% endif %}"
-          >
-            Report ID: {{ r.reportID }}, Patient ID: {{ r.patientID }}, Doctor
-            ID: {{ r.doctorID }}
-          </a>
-        </li>
+          <tr>
+            <td>{{ r.reportID }}</td>
+            <td>{{ r.patientID }}</td>
+            <td>{{ r.doctorID }}</td>
+            <td>
+              <a
+                href="{% if user_type == 'patient' %}{{ url_for('patient_reports_search', reportID=r.reportID) }}
+                      {% elif user_type == 'doctor' %}{{ url_for('doctor_reports_search', reportID=r.reportID) }}
+                      {% elif user_type == 'clinicadmin' %}{{ url_for('admin_reports_search', reportID=r.reportID) }}
+                      {% else %}#{% endif %}"
+              >View</a>
+            </td>
+          </tr>
         {% endfor %}
-      </ul>
+        </tbody>
+      </table>
       {% endif %} {% if not results.appointments and not results.reports %}
       <p>No results found.</p>
       {% endif %}
