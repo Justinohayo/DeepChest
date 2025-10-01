@@ -1,0 +1,124 @@
+/* General styles */
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background-color: #fafafa;
+  color: #333;
+}
+
+/* Navbar */
+nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1e3a8a; /* deep blue */
+  padding: 15px 30px;
+  color: white;
+}
+
+nav .logo {
+  font-size: 22px;
+  font-weight: bold;
+}
+
+nav .nav-links {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+nav .nav-links a {
+  color: white;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+nav .nav-links a:hover {
+  color: #93c5fd; /* lighter blue hover */
+}
+
+/* Dropdown menu */
+.dropdown {
+  position: relative;
+}
+
+.dropbtn {
+  background: none;
+  border: none;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  right: 0;
+  background-color: white;
+  min-width: 160px;
+  box-shadow: 0px 8px 16px rgba(0,0,0,0.2);
+  z-index: 1;
+}
+
+.dropdown-content a {
+  color: #333;
+  padding: 10px 15px;
+  text-decoration: none;
+  display: block;
+}
+
+.dropdown-content a:hover {
+  background-color: #f2f2f2;
+}
+
+.dropdown:hover .dropdown-content {
+  display: block;
+}
+
+/* Page content */
+.doctor-page-content {
+  max-width: 1000px;
+  margin: 30px auto;
+  padding: 20px;
+}
+
+.doctor-page-content h1 {
+  font-size: 28px;
+  margin-bottom: 10px;
+}
+
+.doctor-page-content p {
+  margin-bottom: 20px;
+  color: #555;
+}
+
+/* Table styles */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+table, th, td {
+  border: 1px solid #ccc;
+}
+
+th, td {
+  padding: 12px;
+  text-align: left;
+}
+
+th {
+  background: #f2f2f2;
+}
+
+td a {
+  color: #1e3a8a;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+td a:hover {
+  text-decoration: underline;
+}
