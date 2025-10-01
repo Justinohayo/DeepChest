@@ -106,11 +106,17 @@ CREATE TABLE `Reports` (
   `reportID` int(255) AUTO_INCREMENT NOT NULL UNIQUE,
   `patientID` int(255) NOT NULL,
   `doctorID` int(255),
+  `date` date NOT NULL,
   `files` varbinary(255),
   PRIMARY KEY (reportID),
    FOREIGN KEY (patientID) REFERENCES patient(USERID),
    FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+ -- adds data to the reports table
+INSERT INTO `Reports` (`patientID`, `doctorID`, `date`, `files`) VALUES
+(111, 222, '2024-04-11', 'report1.pdf'),
+(112, 222, '2024-04-12', 'report2.pdf');
 
 /*
         Creates a Table for clinic admins that includes USERID and clinicID
@@ -156,11 +162,17 @@ CREATE TABLE `Xrays` (
   `xrayID`int(255) AUTO_INCREMENT UNIQUE,
   `patientID` int(255) NOT NULL,
   `doctorID` int(255),
+  `date` date NOT NULL,
   `files` varbinary(255),
   PRIMARY KEY (xrayID),
      FOREIGN KEY (patientID) REFERENCES patient(USERID),
    FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+ -- adds data to the xrays table
+INSERT INTO `Xrays` (`patientID`, `doctorID`, `date`, `files`) VALUES
+(111, 222, '2024-04-11', 'xray1.jpg'),
+(112, 222, '2024-04-12', 'xray2.jpg');
 /*
         Creates a Table for messages that includes messageID, patientID, doctorID, content, and time_sent
         */

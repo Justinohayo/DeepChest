@@ -80,16 +80,12 @@
           </tr>
         </thead>
         <tbody>
-        {% for a in results.appointments %}
+          {% for a in results.appointments %}
           <tr>
             <td>
-              {% if a.firstName and a.lastName %}
-                {{ a.firstName }} {{ a.lastName }}
-              {% elif a.patientName %}
-                {{ a.patientName }}
-              {% else %}
-                Patient ID: {{ a.patientID }}
-              {% endif %}
+              {% if a.firstName and a.lastName %} {{ a.firstName }} {{
+              a.lastName }} {% elif a.patientName %} {{ a.patientName }} {% else
+              %} Patient ID: {{ a.patientID }} {% endif %}
             </td>
             <td>{{ a.appointment_date }}</td>
             <td>{{ a.appointment_time }}</td>
@@ -100,10 +96,11 @@
                       {% elif user_type == 'doctor' %}{{ url_for('doctor_appointments_search', apptID=a.apptID) }}
                       {% elif user_type == 'clinicadmin' %}{{ url_for('admin_appointments_search', apptID=a.apptID) }}
                       {% else %}#{% endif %}"
-              >View</a>
+                >View</a
+              >
             </td>
           </tr>
-        {% endfor %}
+          {% endfor %}
         </tbody>
       </table>
       {% endif %} {% if results.reports %}
@@ -113,27 +110,38 @@
         <thead>
           <tr>
             <th>Report ID</th>
-            <th>Patient ID</th>
-            <th>Doctor ID</th>
+            <th>Patient Name</th>
+            <th>Doctor Name</th>
+            <th>Date</th>
             <th>Details</th>
           </tr>
         </thead>
         <tbody>
-        {% for r in results.reports %}
+          {% for r in results.reports %}
           <tr>
             <td>{{ r.reportID }}</td>
-            <td>{{ r.patientID }}</td>
-            <td>{{ r.doctorID }}</td>
+            <td>
+              {% if r.patientFirstName and r.patientLastName %} {{
+              r.patientFirstName }} {{ r.patientLastName }} {% else %} Patient
+              ID: {{ r.patientID }} {% endif %}
+            </td>
+            <td>
+              {% if r.doctorFirstName and r.doctorLastName %} {{
+              r.doctorFirstName }} {{ r.doctorLastName }} {% else %} Doctor ID:
+              {{ r.doctorID }} {% endif %}
+            </td>
+            <td>{{ r.date }}</td>
             <td>
               <a
                 href="{% if user_type == 'patient' %}{{ url_for('patient_reports_search', reportID=r.reportID) }}
                       {% elif user_type == 'doctor' %}{{ url_for('doctor_reports_search', reportID=r.reportID) }}
                       {% elif user_type == 'clinicadmin' %}{{ url_for('admin_reports_search', reportID=r.reportID) }}
                       {% else %}#{% endif %}"
-              >View</a>
+                >View</a
+              >
             </td>
           </tr>
-        {% endfor %}
+          {% endfor %}
         </tbody>
       </table>
       {% endif %} {% if not results.appointments and not results.reports %}
