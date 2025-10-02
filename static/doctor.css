@@ -30,3 +30,45 @@ td a {
 td a:hover {
   text-decoration: underline;
 }
+
+/* Style guide for modify account page */
+/* Layout for the modify account section */
+.modify-account-flex {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 120px;
+}
+/* Style guide for the modify account form */
+.modify-account-form {
+  flex: 1;
+  min-width: 320px;
+  max-width: 500px;
+}
+
+/* Style guide for the modify account form elements */
+.modify-account-form-style {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 24px;
+  max-width: 600px;
+  background: #fff;
+  padding: 32px 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.07);
+}
+
+.modify-account-form-style button {
+  grid-column: 1 / -1; /* Span both columns */
+  justify-self: center; /* Center the button horizontally */
+  width: 50%; /* Optional: make the button narrower */
+  margin-top: 20px;
+}
+
+.modify-account-form-style input,
+.modify-account-form-style select {
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+}
