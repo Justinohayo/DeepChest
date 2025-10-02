@@ -116,7 +116,8 @@ CREATE TABLE `Reports` (
  -- adds data to the reports table
 INSERT INTO `Reports` (`patientID`, `doctorID`, `date`, `files`) VALUES
 (111, 222, '2024-04-11', 'report1.pdf'),
-(112, 222, '2024-04-12', 'report2.pdf');
+(112, 222, '2024-04-12', 'report2.pdf'),
+(111, 222, '2024-08-14', 'report3.pdf');
 
 /*
         Creates a Table for clinic admins that includes USERID and clinicID

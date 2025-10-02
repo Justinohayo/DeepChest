@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <title>Doctor Appointments - DeepChest</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/doctor.css" />
   </head>
   <body>
     <nav>
@@ -29,28 +30,31 @@
       <p>Here you can view and manage all your appointments.</p>
 
       {% if appointments %}
-        <table>
-          <tr>
-            <th>Date</th>
-            <th>Time</th>
-            <th>Patient</th>
-            <th>Symptoms</th>
-            <th>Action</th>
-          </tr>
-          {% for appt in appointments %}
-          <tr>
-            <td>{{ appt.appointment_date }}</td>
-            <td>{{ appt.appointment_time }}</td>
-            <td>{{ appt.firstName }} {{ appt.lastName }}</td>
-            <td>{{ appt.symptoms }}</td>
-            <td>
-              <a href="{{ url_for('doctor_appointments_detail', apptID=appt.apptID) }}">View</a>
-            </td>
-          </tr>
-          {% endfor %}
-        </table>
+      <table>
+        <tr>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Patient</th>
+          <th>Symptoms</th>
+          <th>Action</th>
+        </tr>
+        {% for appt in appointments %}
+        <tr>
+          <td>{{ appt.appointment_date }}</td>
+          <td>{{ appt.appointment_time }}</td>
+          <td>{{ appt.firstName }} {{ appt.lastName }}</td>
+          <td>{{ appt.symptoms }}</td>
+          <td>
+            <a
+              href="{{ url_for('doctor_appointments_detail', apptID=appt.apptID) }}"
+              >View</a
+            >
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
       {% else %}
-        <p>No appointments scheduled.</p>
+      <p>No appointments scheduled.</p>
       {% endif %}
     </div>
   </body>

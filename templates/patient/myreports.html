@@ -26,6 +26,53 @@
     </nav>
     <div class="patient-home-content">
       <h1>My Reports</h1>
+      <div class="report-search-bar-container">
+        <form method="GET" action="/patient/search_reports">
+          <input
+            type="text"
+            name="query"
+            class="report-search-bar"
+            placeholder="Search for specific reports..."
+            autocomplete="off"
+          />
+          <button type="submit" class="report-search-btn">Search</button>
+        </form>
+      </div>
+
+      <!-- Reports Table -->
+      <div style="width: 100%; margin-top: 32px">
+        <table class="search-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Doctor Name</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if reports %} {% for r in reports %}
+            <tr>
+              <td>{{ r.date }}</td>
+              <td>
+                {% if r.doctorFirstName and r.doctorLastName %} {{
+                r.doctorFirstName }} {{ r.doctorLastName }} {% else %} Doctor
+                ID: {{ r.doctorID }} {% endif %}
+              </td>
+              <td>
+                <a
+                  href="{{ url_for('patient_report_details', reportID=r.reportID) }}"
+                  >View</a
+                >
+              </td>
+            </tr>
+            {% endfor %} {% else %}
+            <tr>
+              <td colspan="4" style="text-align: center">No reports found.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </body>
 </html>

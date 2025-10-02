@@ -166,11 +166,116 @@ def patient_appointments():
 @app.route('/patient/reports')
 def patient_reports():
     if session.get('userType') == 'patient':
+        user_id = session.get('user_id')
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT r.reportID, r.date, r.doctorID,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE r.patientID = %s
+            ORDER BY r.date DESC
+        """, (user_id,))
+        reports = cursor.fetchall()
+        cursor.close()
+        conn.close()
         return render_template(
             'patient/myreports.html',
-            user_id=session.get('user_id')
+            user_id=user_id,
+            reports=reports
         )
     return redirect(url_for('login'))
+
+@app.route('/patient/search_reports', methods=['GET'])
+def search_reports():
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    query = request.args.get('query', '').strip()
+
+    # Month name support
+    month_map = {month.lower(): index for index, month in enumerate(calendar.month_name) if month}
+    query_lower = query.lower()
+    month_num = None
+    year_num = None
+    for name, num in month_map.items():
+        if name in query_lower:
+            month_num = num
+            match = re.search(rf"{name}\s+(\d{{4}})", query_lower)
+            if match:
+                year_num = int(match.group(1))
+            else:
+                match = re.search(rf"(\d{{4}})\s+{name}", query_lower)
+                if match:
+                    year_num = int(match.group(1))
+            break
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    if month_num and year_num:
+        cursor.execute("""
+            SELECT r.reportID, r.date, r.doctorID,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE r.patientID = %s AND MONTH(r.date) = %s AND YEAR(r.date) = %s
+            ORDER BY r.date DESC
+        """, (user_id, month_num, year_num))
+    elif month_num:
+        cursor.execute("""
+            SELECT r.reportID, r.date, r.doctorID,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE r.patientID = %s AND MONTH(r.date) = %s
+            ORDER BY r.date DESC
+        """, (user_id, month_num))
+    else:
+        cursor.execute("""
+            SELECT r.reportID, r.date, r.doctorID,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE r.patientID = %s AND (
+                CAST(r.reportID AS CHAR) LIKE %s
+                OR r.date LIKE %s
+                OR d.firstName LIKE %s
+                OR d.lastName LIKE %s
+            )
+            ORDER BY r.date DESC
+        """, (user_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+    reports = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return render_template(
+        'patient/myreports.html',
+        user_id=user_id,
+        reports=reports
+    )
+
+# Report details page for patients
+@app.route('/patient/report_details')
+def patient_report_details():
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    report_id = request.args.get('reportID')
+    user_id = session.get('user_id')
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT r.*, d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+        FROM Reports r
+        JOIN doctor d ON r.doctorID = d.USERID
+        WHERE r.reportID = %s AND r.patientID = %s
+    """, (report_id, user_id))
+    report = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if not report:
+        flash("Report not found.", "danger")
+        return redirect(url_for('patient_reports'))
+    return render_template('patient/reportdetails.html', report=report)
 
 # Patient Messages Page
 @app.route('/patient/messages')
