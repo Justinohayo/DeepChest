@@ -11,7 +11,7 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 db_config = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'test1234',
+    'password': 'Electron1704.',
     'database': 'DeepChest'
 }
 
@@ -63,6 +63,14 @@ def login():
                       session['lastName'] = ""
                   return redirect(url_for('patient_home'))
             elif user['userType'] == 'doctor':
+                conn = mysql.connector.connect(**db_config)
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute("SELECT firstName, lastName FROM doctor WHERE USERID = %s", (user['USERID'],))
+                doctor = cursor.fetchone()
+                cursor.close()
+                conn.close()
+                session['firstName'] = doctor['firstName']
+                session['lastName'] =  doctor['lastName']
                 return redirect(url_for('doctor_home'))
             elif user['userType'] == 'clinicadmin':
                 return redirect(url_for('admin_home'))
@@ -349,7 +357,7 @@ def add_child():
 @app.route('/doctor_home')
 def doctor_home():
     if session.get('userType') == 'doctor':
-        return render_template('doctor/doctorhome.html', username=session.get('username'))
+        return render_template('doctor/doctorhome.html', firstName=session.get('firstName'), lastName=session.get('lastName'))
     return redirect(url_for('login'))
 
 # Doctor Appointments Page
@@ -457,12 +465,22 @@ def doctor_ai_diagnosis():
         prediction=prediction
     )
 
-# Doctor Account Page
-@app.route('/doctor/account')
+#modify doctor account details
+@app.route('/doctor/account', methods=['GET', 'POST'])
 def doctor_account():
-    if session.get('userType') == 'doctor':
-        return render_template('doctor/doctor_account.html', username=session.get('username'))
-    return redirect(url_for('login'))
+    if session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+
+    user_id = session.get('user_id')
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id,))
+    doctor = cursor.fetchone() 
+    cursor.close()
+    conn.close()
+
+    return render_template('doctor/doctor_modifyaccount.html', doctor=doctor)
+
 
 # Clinic Admin Home Page
 @app.route('/admin_home')

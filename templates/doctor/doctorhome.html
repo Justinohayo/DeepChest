@@ -25,8 +25,21 @@
     </nav>
 
     <div class="home-content">
-      <h1>Welcome, Doctor!</h1>
+      <h1>Welcome, Dr. {{ firstName }} {{ lastName }}!</h1>
       <p>This is your dashboard.</p>
+
+      <div class="search-bar-container">
+        <form method="GET" action="/search">
+          <input
+            type="text"
+            name="query"
+            class="search-bar"
+            placeholder="Search for appointments, or reports..."
+            autocomplete="off"
+          />
+          <button type="submit" class="search-btn">Search</button>
+        </form>
+      </div>
     </div>
   </body>
 </html>
