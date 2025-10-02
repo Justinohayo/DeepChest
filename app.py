@@ -11,7 +11,7 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 db_config = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'Electron1704.',
+    'password': 'test1234',
     'database': 'DeepChest'
 }
 
@@ -431,11 +431,41 @@ def doctor_patients():
     return redirect(url_for('login'))
 
 # Doctor Reports Page
+#@app.route('/doctor/reports')
+#def doctor_reports():
+ #   if session.get('userType') == 'doctor':
+  #      return render_template('doctor/doctor_reports.html', username=session.get('username'))
+  #  return redirect(url_for('login'))
+
+# Doctor Reports Page
+# Doctor Reports Page
 @app.route('/doctor/reports')
 def doctor_reports():
-    if session.get('userType') == 'doctor':
-        return render_template('doctor/doctor_reports.html', username=session.get('username'))
-    return redirect(url_for('login'))
+    if session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+
+    doctor_id = session.get('user_id')
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    # Pull all reports for this doctor, join patient info
+    cursor.execute("""
+        SELECT r.reportID, r.files, p.firstName, p.lastName
+        FROM Reports r
+        JOIN patient p ON r.patientID = p.USERID
+        WHERE r.doctorID = %s
+    """, (doctor_id,))
+
+    reports = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        'doctor/doctor_reports.html',
+        username=session.get('username'),
+        reports=reports
+    )
 
 
 # Doctor AI Diagnosis Page

@@ -106,7 +106,7 @@ CREATE TABLE `Reports` (
   `reportID` int(255) AUTO_INCREMENT NOT NULL UNIQUE,
   `patientID` int(255) NOT NULL,
   `doctorID` int(255),
-  `date` date NOT NULL,
+  `reportDate` date NOT NULL,
   `files` varbinary(255),
   PRIMARY KEY (reportID),
    FOREIGN KEY (patientID) REFERENCES patient(USERID),
@@ -114,7 +114,7 @@ CREATE TABLE `Reports` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the reports table
-INSERT INTO `Reports` (`patientID`, `doctorID`, `date`, `files`) VALUES
+INSERT INTO `Reports` (`patientID`, `doctorID`, `reportDate`, `files`) VALUES
 (111, 222, '2024-04-11', 'report1.pdf'),
 (112, 222, '2024-04-12', 'report2.pdf'),
 (111, 222, '2024-08-14', 'report3.pdf');

@@ -27,6 +27,34 @@
     <div class="doctor-page-content">
       <h1>Reports</h1>
       <p>View and upload diagnostic reports here.</p>
+
+      <h1>My Reports</h1>
+
+      <table border="1">
+        <thead>
+          <tr>
+            <th>Report ID</th>
+            <th>Patient</th>
+            <th>Date</th>
+            <th>File</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for report in reports %}
+            <tr>
+              <td>{{ report.reportID }}</td>
+              <td>{{ report.reportID }}</td>
+              <td>{{ report.reportID }}</td>
+              <td>{{ report.files }}</td>
+              <td>
+                <a href="/doctor/reports/detail?reportID={{ report.reportID }}">View</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
     </div>
   </body>
 </html>
