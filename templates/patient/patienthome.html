@@ -5,10 +5,18 @@
     <title>Patient Home - DeepChest</title>
     <link rel="stylesheet" href="/static/style.css" />
     <link rel="stylesheet" href="/static/patient.css" />
+    <link rel="stylesheet" href="/static/logostyle.css" />
   </head>
   <body>
     <nav>
-      <div class="logo">DeepChest</div>
+      <div class="logo">
+        <a href="#"
+          ><img
+            src="{{ url_for('static', filename='logo_DeepChest.png') }}"
+            class="logo-img"
+        /></a>
+        <div class="logo-text">DeepChest</div>
+      </div>
       <div class="nav-links">
         <a href="#">Home</a>
         <a href="/patient/appointments">Appointments</a>
