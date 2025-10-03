@@ -24,8 +24,41 @@
         </div>
       </div>
     </nav>
-    <div class="patient-home-content">
+    <div class="patient-content">
       <h1>Your Appointments</h1>
+      <div class="appointments-flex">
+        <!-- Appointments List (Left) -->
+        <div class="appointments-list-panel">
+          <h3>Upcoming Appointments</h3>
+          <ul class="appointments-list">
+            {% if appointments %}
+              {% for appt in appointments %}
+                <li>
+                  <strong>{{ appt.appointment_date }}</strong> {{ appt.appointment_time }}<br />
+                  Dr. {{ appt.doctorFirstName }} {{ appt.doctorLastName }}<br />
+                  <span class="appt-notes">{{ appt.symptoms }}</span>
+                </li>
+              {% endfor %}
+            {% else %}
+              <li>No appointments scheduled.</li>
+            {% endif %}
+          </ul>
+        </div>
+        <!-- Actions (Right) -->
+        <div class="appointments-actions-panel">
+          <button class="appt-action-btn" onclick="window.location.href='/patient/edit-appointments'">
+            Edit Appointments
+          </button>
+          <button class="appt-action-btn" onclick="window.location.href='/patient/book-appointment'">
+            Book New Appointment
+          </button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+        </div>
+      </div>
     </div>
   </body>
 </html>

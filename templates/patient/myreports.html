@@ -24,7 +24,7 @@
         </div>
       </div>
     </nav>
-    <div class="patient-home-content">
+    <div class="patient-content">
       <h1>My Reports</h1>
       <div class="report-search-bar-container">
         <form method="GET" action="/patient/search_reports">
@@ -52,7 +52,7 @@
           <tbody>
             {% if reports %} {% for r in reports %}
             <tr>
-              <td>{{ r.date }}</td>
+              <td>{{ r.reportDate }}</td>
               <td>
                 {% if r.doctorFirstName and r.doctorLastName %} {{
                 r.doctorFirstName }} {{ r.doctorLastName }} {% else %} Doctor

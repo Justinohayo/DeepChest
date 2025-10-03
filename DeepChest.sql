@@ -88,6 +88,7 @@ CREATE TABLE `appointments` (
 `appointment_date` date NOT NULL,
 `appointment_time` time NOT NULL,
 `doctorID` int(255),
+`clinicID` varchar(255),
 `symptoms` varchar(20),
 PRIMARY KEY (apptID),
   FOREIGN KEY (patientID) REFERENCES patient(USERID),
@@ -95,9 +96,9 @@ PRIMARY KEY (apptID),
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the appointments table
-INSERT INTO `appointments` (`apptID`,`patientID`, `appointment_date`, `appointment_time`, `doctorID`,`symptoms`) VALUES
-(1,111,  '2024-03-11', '14:39:00','222','flu like'),
-(2,112,  '2024-03-12', '10:00:00','222','coughing');
+INSERT INTO `appointments` (`apptID`,`patientID`, `appointment_date`, `appointment_time`, `doctorID`,`clinicID`,`symptoms`) VALUES
+(1,111,  '2024-03-11', '14:39:00','222','clinic1','flu like'),
+(2,112,  '2024-03-12', '10:00:00','222','clinic1','coughing');
 
 /*
         Creates a Table for reports that includes reportID, patientID, doctorID, and files

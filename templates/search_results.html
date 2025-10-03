@@ -130,7 +130,7 @@
               r.doctorFirstName }} {{ r.doctorLastName }} {% else %} Doctor ID:
               {{ r.doctorID }} {% endif %}
             </td>
-            <td>{{ r.date }}</td>
+            <td>{{ r.reportDate }}</td>
             <td>
               <a
                 href="{% if user_type == 'patient' %}{{ url_for('patient_reports_search', reportID=r.reportID) }}
@@ -144,7 +144,33 @@
           {% endfor %}
         </tbody>
       </table>
-      {% endif %} {% if not results.appointments and not results.reports %}
+      {% endif %} {% if results.patients %}
+      <!-- Section for Patients shows results as links -->
+      <h3>Patients</h3>
+      <table class="search-table">
+        <thead>
+          <tr>
+            <th>Patient ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Date of Birth</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in results.patients %}
+          <tr>
+            <td>{{ p.USERID }}</td>
+            <td>{{ p.firstName }} {{ p.lastName }}</td>
+            <td>{{ p.email }}</td>
+            <td>{{ p.phone }}</td>
+            <td>{{ p.dateofbirth }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %} {% if not results.appointments and not results.reports and not
+      results.patients %}
       <p>No results found.</p>
       {% endif %}
     </div>

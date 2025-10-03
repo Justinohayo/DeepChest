@@ -3,6 +3,7 @@ import mysql.connector
 import webbrowser
 import calendar
 import re
+from datetime import date, datetime
 
 app = Flask(__name__)
 app.secret_key = '1234'  # Needed for flash messages and sessions
@@ -163,12 +164,28 @@ def patient_home():
 # Patient Appointments Page
 @app.route('/patient/appointments')
 def patient_appointments():
-    if session.get('userType') == 'patient':
-        return render_template(
-            'patient/p_appointments.html',
-            user_id=session.get('user_id')
-        )
-    return redirect(url_for('login'))
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    user_id = session.get('user_id')
+
+    # Fetch all appointments for this patient
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT a.appointment_date, a.appointment_time, d.firstName AS doctorFirstName, d.lastName AS doctorLastName, a.symptoms
+        FROM appointments a
+        JOIN doctor d ON a.doctorID = d.USERID
+        WHERE a.patientID = %s
+        ORDER BY a.appointment_date, a.appointment_time
+    """, (user_id,))
+    appointments = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        'patient/p_appointments.html',
+        appointments=appointments
+    )
 
 # Patient Reports Page
 @app.route('/patient/reports')
@@ -178,12 +195,12 @@ def patient_reports():
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor(dictionary=True)
         cursor.execute("""
-            SELECT r.reportID, r.date, r.doctorID,
+            SELECT r.reportID, r.reportDate, r.doctorID,
                    d.firstName AS doctorFirstName, d.lastName AS doctorLastName
             FROM Reports r
             JOIN doctor d ON r.doctorID = d.USERID
             WHERE r.patientID = %s
-            ORDER BY r.date DESC
+            ORDER BY r.reportDate DESC
         """, (user_id,))
         reports = cursor.fetchall()
         cursor.close()
@@ -223,35 +240,35 @@ def search_reports():
     cursor = conn.cursor(dictionary=True)
     if month_num and year_num:
         cursor.execute("""
-            SELECT r.reportID, r.date, r.doctorID,
+            SELECT r.reportID, r.reportDate, r.doctorID,
                    d.firstName AS doctorFirstName, d.lastName AS doctorLastName
             FROM Reports r
             JOIN doctor d ON r.doctorID = d.USERID
-            WHERE r.patientID = %s AND MONTH(r.date) = %s AND YEAR(r.date) = %s
-            ORDER BY r.date DESC
+            WHERE r.patientID = %s AND MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
+            ORDER BY r.reportDate DESC
         """, (user_id, month_num, year_num))
     elif month_num:
         cursor.execute("""
-            SELECT r.reportID, r.date, r.doctorID,
+            SELECT r.reportID, r.reportDate, r.doctorID,
                    d.firstName AS doctorFirstName, d.lastName AS doctorLastName
             FROM Reports r
             JOIN doctor d ON r.doctorID = d.USERID
-            WHERE r.patientID = %s AND MONTH(r.date) = %s
-            ORDER BY r.date DESC
+            WHERE r.patientID = %s AND MONTH(r.reportDate) = %s
+            ORDER BY r.reportDate DESC
         """, (user_id, month_num))
     else:
         cursor.execute("""
-            SELECT r.reportID, r.date, r.doctorID,
+            SELECT r.reportID, r.reportDate, r.doctorID,
                    d.firstName AS doctorFirstName, d.lastName AS doctorLastName
             FROM Reports r
             JOIN doctor d ON r.doctorID = d.USERID
             WHERE r.patientID = %s AND (
                 CAST(r.reportID AS CHAR) LIKE %s
-                OR r.date LIKE %s
+                OR r.reportDate LIKE %s
                 OR d.firstName LIKE %s
                 OR d.lastName LIKE %s
             )
-            ORDER BY r.date DESC
+            ORDER BY r.reportDate DESC
         """, (user_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
     reports = cursor.fetchall()
     cursor.close()
@@ -532,6 +549,7 @@ def search():
     query = request.args.get('query', '').strip()
     user_type = session.get('userType')
     user_id = session.get('user_id')
+    clinic_id = session.get('clinicID')
 
     # Map month names to numbers
     month_map = {month.lower(): index for index, month in enumerate(calendar.month_name) if month}
@@ -587,7 +605,69 @@ def search():
                   AND a.patientID = %s
             """, (f"%{query}%", f"%{query}%", user_id))
         appointments = cursor.fetchall()
+    elif user_type == 'doctor':
+        # Only appointments for this doctor
+        if month_num and year_num:
+            cursor.execute("""
+                SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
+                       p.firstName, p.lastName
+                FROM appointments a
+                JOIN patient p ON a.patientID = p.USERID
+                WHERE MONTH(a.appointment_date) = %s AND YEAR(a.appointment_date) = %s
+                  AND a.doctorID = %s
+            """, (month_num, year_num, user_id))
+        elif month_num:
+            cursor.execute("""
+                SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
+                       p.firstName, p.lastName
+                FROM appointments a
+                JOIN patient p ON a.patientID = p.USERID
+                WHERE MONTH(a.appointment_date) = %s
+                  AND a.doctorID = %s
+            """, (month_num, user_id))
+        else:
+            
+            cursor.execute("""
+                SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
+                       p.firstName, p.lastName
+                FROM appointments a
+                JOIN patient p ON a.patientID = p.USERID
+                WHERE (a.symptoms LIKE %s OR a.appointment_date LIKE %s OR p.firstName LIKE %s OR p.lastName LIKE %s)
+                  AND a.doctorID = %s
+            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", user_id))
+        appointments = cursor.fetchall()
+    elif user_type == 'clinicadmin':
+        # Only appointments for this clinic
+        if month_num and year_num:
+            cursor.execute("""
+                SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
+                       p.firstName, p.lastName
+                FROM appointments a
+                JOIN patient p ON a.patientID = p.USERID
+                WHERE MONTH(a.appointment_date) = %s AND YEAR(a.appointment_date) = %s
+                  AND a.clinicID = %s
+            """, (month_num, year_num, clinic_id))
+        elif month_num:
+            cursor.execute("""
+                SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
+                       p.firstName, p.lastName
+                FROM appointments a
+                JOIN patient p ON a.patientID = p.USERID
+                WHERE MONTH(a.appointment_date) = %s
+                  AND a.clinicID = %s
+            """, (month_num, clinic_id))
+        else:
+            cursor.execute("""
+                SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
+                       p.firstName, p.lastName
+                FROM appointments a
+                JOIN patient p ON a.patientID = p.USERID
+                WHERE (a.symptoms LIKE %s OR a.appointment_date LIKE %s OR p.firstName LIKE %s OR p.lastName LIKE %s)
+                  AND a.clinicID = %s
+            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", clinic_id))
+        appointments = cursor.fetchall()
     else:
+        # Default: show all
         if month_num and year_num:
             cursor.execute("""
                 SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
@@ -605,40 +685,41 @@ def search():
                 WHERE MONTH(a.appointment_date) = %s
             """, (month_num,))
         else:
+            
             cursor.execute("""
                 SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
                        p.firstName, p.lastName
                 FROM appointments a
                 JOIN patient p ON a.patientID = p.USERID
-                WHERE a.symptoms LIKE %s OR a.appointment_date LIKE %s
-            """, (f"%{query}%", f"%{query}%"))
+                WHERE a.symptoms LIKE %s OR a.appointment_date LIKE %s OR p.firstName LIKE %s OR p.lastName LIKE %s
+            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
         appointments = cursor.fetchall()
 
     # --- REPORTS ---
     if user_type == 'patient':
         if month_num and year_num:
             cursor.execute("""
-                SELECT r.reportID, r.patientID, r.doctorID, r.date,
+                SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
                        p.firstName AS patientFirstName, p.lastName AS patientLastName,
                        d.firstName AS doctorFirstName, d.lastName AS doctorLastName
                 FROM Reports r
                 JOIN patient p ON r.patientID = p.USERID
                 JOIN doctor d ON r.doctorID = d.USERID
-                WHERE MONTH(r.date) = %s AND YEAR(r.date) = %s AND r.patientID = %s
+                WHERE MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s AND r.patientID = %s
             """, (month_num, year_num, user_id))
         elif month_num:
             cursor.execute("""
-                SELECT r.reportID, r.patientID, r.doctorID, r.date,
+                SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
                        p.firstName AS patientFirstName, p.lastName AS patientLastName,
                        d.firstName AS doctorFirstName, d.lastName AS doctorLastName
                 FROM Reports r
                 JOIN patient p ON r.patientID = p.USERID
                 JOIN doctor d ON r.doctorID = d.USERID
-                WHERE MONTH(r.date) = %s AND r.patientID = %s
+                WHERE MONTH(r.reportDate) = %s AND r.patientID = %s
             """, (month_num, user_id))
         else:
             cursor.execute("""
-                SELECT r.reportID, r.patientID, r.doctorID, r.date,
+                SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
                        p.firstName AS patientFirstName, p.lastName AS patientLastName,
                        d.firstName AS doctorFirstName, d.lastName AS doctorLastName
                 FROM Reports r
@@ -647,35 +728,119 @@ def search():
                 WHERE (
                     CAST(r.reportID AS CHAR) LIKE %s
                     OR CAST(r.patientID AS CHAR) LIKE %s
-                    OR r.date LIKE %s
+                    OR r.reportDate LIKE %s
                 )
                 AND r.patientID = %s
             """, (f"%{query}%", f"%{query}%", f"%{query}%", user_id))
         reports = cursor.fetchall()
-    else:
+    elif user_type == 'doctor':
+        # Only reports for this doctor
         if month_num and year_num:
             cursor.execute("""
-                SELECT r.reportID, r.patientID, r.doctorID, r.date,
+                SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
                        p.firstName AS patientFirstName, p.lastName AS patientLastName,
                        d.firstName AS doctorFirstName, d.lastName AS doctorLastName
                 FROM Reports r
                 JOIN patient p ON r.patientID = p.USERID
                 JOIN doctor d ON r.doctorID = d.USERID
-                WHERE MONTH(r.date) = %s AND YEAR(r.date) = %s
+                WHERE MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s AND r.doctorID = %s
+            """, (month_num, year_num, user_id))
+        elif month_num:
+            cursor.execute("""
+                SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
+                       p.firstName AS patientFirstName, p.lastName AS patientLastName,
+                       d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+                FROM Reports r
+                JOIN patient p ON r.patientID = p.USERID
+                JOIN doctor d ON r.doctorID = d.USERID
+                WHERE MONTH(r.reportDate) = %s AND r.doctorID = %s
+            """, (month_num, user_id))
+        else:
+          
+            cursor.execute("""
+                SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
+                       p.firstName AS patientFirstName, p.lastName AS patientLastName,
+                       d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+                FROM Reports r
+                JOIN patient p ON r.patientID = p.USERID
+                JOIN doctor d ON r.doctorID = d.USERID
+                WHERE (
+                    CAST(r.reportID AS CHAR) LIKE %s
+                    OR CAST(r.patientID AS CHAR) LIKE %s
+                    OR r.reportDate LIKE %s
+                    OR p.firstName LIKE %s
+                    OR p.lastName LIKE %s
+                )
+                AND r.doctorID = %s
+            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", user_id))
+        reports = cursor.fetchall()
+    elif user_type == 'clinicadmin':
+        # Only reports for this clinic 
+        if month_num and year_num:
+            cursor.execute("""
+                SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
+                       p.firstName AS patientFirstName, p.lastName AS patientLastName,
+                       d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+                FROM Reports r
+                JOIN patient p ON r.patientID = p.USERID
+                JOIN doctor d ON r.doctorID = d.USERID
+                WHERE MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s AND p.clinicID = %s
+            """, (month_num, year_num, clinic_id))
+        elif month_num:
+            cursor.execute("""
+                SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
+                       p.firstName AS patientFirstName, p.lastName AS patientLastName,
+                       d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+                FROM Reports r
+                JOIN patient p ON r.patientID = p.USERID
+                JOIN doctor d ON r.doctorID = d.USERID
+                WHERE MONTH(r.reportDate) = %s AND p.clinicID = %s
+            """, (month_num, clinic_id))
+        else:
+        
+            cursor.execute("""
+                SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
+                       p.firstName AS patientFirstName, p.lastName AS patientLastName,
+                       d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+                FROM Reports r
+                JOIN patient p ON r.patientID = p.USERID
+                JOIN doctor d ON r.doctorID = d.USERID
+                WHERE (
+                    CAST(r.reportID AS CHAR) LIKE %s
+                    OR CAST(r.patientID AS CHAR) LIKE %s
+                    OR r.reportDate LIKE %s
+                    OR p.firstName LIKE %s
+                    OR p.lastName LIKE %s
+                )
+                AND p.clinicID = %s
+            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", clinic_id))
+        reports = cursor.fetchall()
+    else:
+        # Default: show all
+        if month_num and year_num:
+            cursor.execute("""
+                SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
+                       p.firstName AS patientFirstName, p.lastName AS patientLastName,
+                       d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+                FROM Reports r
+                JOIN patient p ON r.patientID = p.USERID
+                JOIN doctor d ON r.doctorID = d.USERID
+                WHERE MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
             """, (month_num, year_num))
         elif month_num:
             cursor.execute("""
-                SELECT r.reportID, r.patientID, r.doctorID, r.date,
+                SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
                        p.firstName AS patientFirstName, p.lastName AS patientLastName,
                        d.firstName AS doctorFirstName, d.lastName AS doctorLastName
                 FROM Reports r
                 JOIN patient p ON r.patientID = p.USERID
                 JOIN doctor d ON r.doctorID = d.USERID
-                WHERE MONTH(r.date) = %s
+                WHERE MONTH(r.reportDate) = %s
             """, (month_num,))
         else:
+            # Add patient name search for default
             cursor.execute("""
-                SELECT r.reportID, r.patientID, r.doctorID, r.date,
+                SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
                        p.firstName AS patientFirstName, p.lastName AS patientLastName,
                        d.firstName AS doctorFirstName, d.lastName AS doctorLastName
                 FROM Reports r
@@ -684,16 +849,38 @@ def search():
                 WHERE
                     CAST(r.reportID AS CHAR) LIKE %s
                     OR CAST(r.patientID AS CHAR) LIKE %s
-                    OR r.date LIKE %s
-            """, (f"%{query}%", f"%{query}%", f"%{query}%"))
+                    OR r.reportDate LIKE %s
+                    OR p.firstName LIKE %s
+                    OR p.lastName LIKE %s
+            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
         reports = cursor.fetchall()
+
+    # --- PATIENTS (for doctor and clinicadmin) ---
+    patients = []
+    if user_type == 'doctor':
+        cursor.execute("""
+            SELECT USERID, firstName, lastName, email, phone, dateofbirth
+            FROM patient
+            WHERE firstName LIKE %s OR lastName LIKE %s OR email LIKE %s OR phone LIKE %s
+        """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+        patients = cursor.fetchall()
+    elif user_type == 'clinicadmin':
+        cursor.execute("""
+            SELECT USERID, firstName, lastName, email, phone, dateofbirth
+            FROM patient
+            WHERE clinicID = %s AND (
+                firstName LIKE %s OR lastName LIKE %s OR email LIKE %s OR phone LIKE %s
+            )
+        """, (clinic_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+        patients = cursor.fetchall()
 
     cursor.close()
     conn.close()
 
     results = {
         "appointments": appointments,
-        "reports": reports
+        "reports": reports,
+        "patients": patients
     }
 
     # Pass userType and user info for dynamic navbar
@@ -765,7 +952,7 @@ def patient_reports_search():
     report = cursor.fetchone()
     cursor.close()
     conn.close()
-    return render_template('patient/myreports.html', report=report)
+    return render_template('patient/reportdetails.html', report=report)
 
 # Report route for doctor to view report details on reports page
 @app.route('/doctor/reports/detail')
