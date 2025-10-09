@@ -12,7 +12,7 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 db_config = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'test1234',
+    'password': '12345',
     'database': 'DeepChest'
 }
 
@@ -533,7 +533,50 @@ def doctor_account():
 @app.route('/admin_home')
 def admin_home():
     if session.get('userType') == 'clinicadmin':
-        return render_template('/clinic_admin/adminhome.html', username=session.get('username'))
+        return render_template('clinic_admin/adminhome.html', firstName=session.get('firstName'), lastName=session.get('lastName'))
+    return redirect(url_for('login'))
+
+@app.route('/admin_home/appointments')
+def admin_appointmennts():
+    if session.get('userType') != 'clinicadmin':
+       return redirect(url_for('login'))
+    
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    #Join appointments with patient info with of the corresponding clinic 
+    cursor.execute("""
+        SELECT a.apptID, a.appointment_date, a.appointment_time, a.symptoms, 
+                   p.firstName, p.lastName
+
+        FROM appointments a
+        JOIN patient p ON a.patientID = p.USERID
+        ORDER BY a.appointment_date, a.appointment_time 
+    """)
+    appointments = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return render_template('/clinic_admin/AppointmentAdmin.html',
+                           appointments=appointments,
+                           username=session.get('username'))
+
+@app.route('/admin_home/manage_accounts')
+def admin_manageaccount():
+    if session.get('userType') != 'clinicadmin':
+         return redirect(url_for('login'))
+    return render_template('/clinic_admin/ManageAccount.html',username=session.get('username'))
+
+@app.route('/admin_home/manage_reports')
+def admin_managereports():
+    if session.get('userType') != 'clinicadmin':
+        return render_template('/clinic_admin/ManageReports.html',username=session.get('username'))
+    return redirect(url_for('login'))
+
+@app.route('/admin_home/manage_appointments/book_appointment')
+def admin_bookAppoimnent():
+    if session.get('userType') != 'clinicadmin':
+        return render_template('/clinic_admin/BookAppoiment.html',username=session.get('username'))
     return redirect(url_for('login'))
 
 

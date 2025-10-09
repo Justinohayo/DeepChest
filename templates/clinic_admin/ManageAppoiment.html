@@ -9,13 +9,27 @@
     <nav>
       <div class="logo">DeepChest</div>
       <div class="nav-links">
-        <a href="/">Manage Appointment</a>
+        <a href="#">Home</a>
+        <a href ="/clinic_admin/AppointmentAdmin">Appoinments</a>
+        <a href = "/clinic_admin/ManageAccount">Manage Account</a>
+        <a href = "/clinic_admin/ManageReports">Manage Report</a>
         <a href="/logout">Logout</a>
       </div>
     </nav>
-    <div class="center-content">
-      <h1>Welcome, Admin!</h1>
-      <p>All Appointment availability, booked will show here!</p>
+    <div class="home-content">
+      <h1>Search for Appointment</h1>
+      <div class="search-bar-container">
+        <form method="GET" action="/search">
+          <input
+            type="text"
+            name="query"
+            class="search-bar"
+            placeholder="Search for appointments, or reports..."
+            autocomplete="off"
+          />
+          <button type="submit" class="search-btn">Search</button>
+        </form>
+      </div>
     </div>
   </body>
 </html>
