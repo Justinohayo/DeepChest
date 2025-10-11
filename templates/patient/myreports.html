@@ -48,7 +48,7 @@
       </div>
 
       <!-- Reports Table -->
-      <div style="width: 100%; margin-top: 32px">
+      <div class="patient-reports-table">
         <table class="search-table">
           <thead>
             <tr>
@@ -60,7 +60,9 @@
           <tbody>
             {% if reports %} {% for r in reports %}
             <tr>
-              <td>{{ r.reportDate }}</td>
+              <td>
+                {{ r.reportDate.strftime('%B %#d %Y') if r.reportDate else '' }}
+              </td>
               <td>
                 {% if r.doctorFirstName and r.doctorLastName %} {{
                 r.doctorFirstName }} {{ r.doctorLastName }} {% else %} Doctor

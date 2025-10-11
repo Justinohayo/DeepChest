@@ -1,3 +1,19 @@
+/* Style guide for doctor home page */
+.doctor-home-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh; /* Adjusts vertical centering */
+  background: #fff;
+  margin: 60px auto 0 auto;
+  padding: 10px 10px;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.07);
+  max-width: 1500px;
+}
+
+
 /* Table styles for doctor appointment */
 table {
   width: 100%;

@@ -12,7 +12,7 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 db_config = {
     'host': 'localhost',
     'user': 'root',
-    'password': '12345',
+    'password': 'test1234',
     'database': 'DeepChest'
 }
 
@@ -172,7 +172,7 @@ def patient_appointments():
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""
-        SELECT a.appointment_date, a.appointment_time, d.firstName AS doctorFirstName, d.lastName AS doctorLastName, a.symptoms
+        SELECT a.apptID, a.appointment_date, a.appointment_time, d.firstName AS doctorFirstName, d.lastName AS doctorLastName, a.symptoms
         FROM appointments a
         JOIN doctor d ON a.doctorID = d.USERID
         WHERE a.patientID = %s
@@ -186,6 +186,69 @@ def patient_appointments():
         'patient/p_appointments.html',
         appointments=appointments
     )
+
+# Handle the selection of an appointment to edit
+@app.route('/patient/edit-appointments', methods=['POST'])
+def patient_edit_appointments():
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    appointment_id = request.form.get('appointment_id')
+    if not appointment_id:
+        flash('Please select an appointment to edit.')
+        return redirect(url_for('patient_appointments'))
+    try:
+        appointment_id = int(appointment_id)
+    except ValueError:
+        flash('Invalid appointment selected.')
+        return redirect(url_for('patient_appointments'))
+    return redirect(url_for('patient_manage_appointment', appointment_id=appointment_id))
+
+# Show the manage/edit appointment page
+@app.route('/patient/manage-appointment/<int:appointment_id>', methods=['GET', 'POST'])
+def patient_manage_appointment(appointment_id):
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    # Fetch the appointment for this patient
+    cursor.execute("""
+        SELECT a.apptID, a.appointment_date, a.appointment_time, a.symptoms,
+               d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+        FROM appointments a
+        JOIN doctor d ON a.doctorID = d.USERID
+        WHERE a.apptID = %s AND a.patientID = %s
+    """, (appointment_id, user_id))
+    appointment = cursor.fetchone()
+
+    if not appointment:
+        cursor.close()
+        conn.close()
+        flash("Appointment not found.", "danger")
+        return redirect(url_for('patient_appointments'))
+
+    if request.method == 'POST':
+        # Example: update symptoms (add more fields as needed)
+        new_symptoms = request.form.get('symptoms')
+        cursor.execute("""
+            UPDATE appointments SET symptoms = %s WHERE apptID = %s AND patientID = %s
+        """, (new_symptoms, appointment_id, user_id))
+        conn.commit()
+        flash('Appointment updated successfully!')
+        cursor.close()
+        conn.close()
+        return redirect(url_for('patient_appointments'))
+
+    cursor.close()
+    conn.close()
+    return render_template('patient/p_manageappointments.html', appointment=appointment)
+
+@app.route('/patient/book-appointment', methods=['GET', 'POST'])
+def patient_book_appointment():
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    # You can add POST logic here to handle booking if needed
+    return render_template('patient/p_bookappointment.html')
 
 # Patient Reports Page
 @app.route('/patient/reports')
@@ -205,6 +268,12 @@ def patient_reports():
         reports = cursor.fetchall()
         cursor.close()
         conn.close()
+        for r in reports:
+            if isinstance(r['reportDate'], str):
+                try:
+                    r['reportDate'] = datetime.strptime(r['reportDate'], '%Y-%m-%d')
+                except Exception:
+                    pass
         return render_template(
             'patient/myreports.html',
             user_id=user_id,
@@ -1024,6 +1093,7 @@ def admin_reports_search():
     cursor.close()
     conn.close()
     return render_template('clinic_admin/ManageReports.html', report=report)
+
 
 if __name__ == '__main__':
     app.run(debug=True)

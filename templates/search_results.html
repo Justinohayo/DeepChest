@@ -66,6 +66,19 @@
       <!-- Displays search results -->
       <h2>Search results for "{{ query }}"</h2>
 
+  <div class="results-search-bar-container">
+        <form method="GET" action="/search">
+          <input
+            type="text"
+            name="query"
+            class="results-search-bar"
+            placeholder="Search for other appointments, or reports..."
+            autocomplete="off"
+          />
+          <button type="submit" class="results-search-btn">Search</button>
+        </form>
+      </div>
+
       <!-- Section for Appointments shows results as links -->
       {% if results.appointments %}
       <h3>Appointments</h3>
