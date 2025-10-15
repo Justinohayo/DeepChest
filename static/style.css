@@ -265,4 +265,31 @@ nav .nav-links a:last-child {
 }
 
 
+.patient-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+.patient-table th, .patient-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.patient-table th {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.patient-table tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+.patient-table tr:hover {
+  background-color: #ddd;
+}
+
+
+
 

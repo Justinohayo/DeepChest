@@ -509,21 +509,46 @@ def doctor_appointments_detail():
                            appointment=appointment,
                            username=session.get('username'))
 
+
+
+# Database connection helper
+def get_db_connection():
+    """Create and return a new MySQL database connection."""
+    return mysql.connector.connect(**db_config)
+
+
 # Doctor Patients Page
 @app.route('/doctor/patients')
 def doctor_patients():
-    if session.get('userType') == 'doctor':
-        return render_template('doctor/doctor_patients.html', username=session.get('username'))
-    return redirect(url_for('login'))
+    if session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
 
-# Doctor Reports Page
-#@app.route('/doctor/reports')
-#def doctor_reports():
- #   if session.get('userType') == 'doctor':
-  #      return render_template('doctor/doctor_reports.html', username=session.get('username'))
-  #  return redirect(url_for('login'))
+    doctor_id = session.get('user_id')
+    doctor_username = session.get('username')
 
-# Doctor Reports Page
+    if not doctor_id:
+        return "Doctor not found", 404
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT p.firstName, p.lastName, p.age, p.dateofbirth, p.phone, p.email,
+               p.address, p.city, p.province, p.postalCode, p.insurance
+        FROM patient p
+        WHERE p.doctorID = %s
+    """, (doctor_id,))
+
+    patients = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return render_template('doctor/doctor_patients.html',
+                           username=doctor_username,
+                           patients=patients)
+
+
 # Doctor Reports Page
 @app.route('/doctor/reports')
 def doctor_reports():
@@ -588,14 +613,47 @@ def doctor_account():
         return redirect(url_for('login'))
 
     user_id = session.get('user_id')
+
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor(dictionary=True)
+
+    if request.method == 'POST':
+        first_name = request.form.get('firstName')
+        last_name = request.form.get('lastName')
+        email = request.form.get('email')
+        phone = request.form.get('phoneNumber')
+
+        cursor.execute("""
+            UPDATE doctor
+            SET firstName = %s,
+                lastName = %s,
+                email = %s,
+                phone = %s
+            WHERE USERID = %s
+        """, (first_name, last_name, email, phone, user_id))
+        conn.commit()
+
+        cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id,))
+        doctor = cursor.fetchone()
+
+        session['firstName'] = doctor['firstName']
+        session['lastName'] = doctor['lastName']
+
+        cursor.close()
+        conn.close()
+
+        flash("Account updated successfully!", "success")
+        return render_template('doctor/doctor_modifyaccount.html', doctor=doctor)
+
     cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id,))
-    doctor = cursor.fetchone() 
+    doctor = cursor.fetchone()
+
     cursor.close()
     conn.close()
 
     return render_template('doctor/doctor_modifyaccount.html', doctor=doctor)
+
+
 
 
 # Clinic Admin Home Page

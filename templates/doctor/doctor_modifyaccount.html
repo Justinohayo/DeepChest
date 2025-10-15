@@ -2,10 +2,37 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>doctor Home - DeepChest</title>
+    <title>Doctor Home - DeepChest</title>
     <link rel="stylesheet" href="/static/style.css" />
     <link rel="stylesheet" href="/static/doctor.css" />
+    <style>
+  
+      .flash-messages {
+        margin: 15px 0;
+      }
+
+      .alert {
+        padding: 10px 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        font-weight: bold;
+        width: fit-content;
+      }
+
+      .alert.success {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .alert.error {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+    </style>
   </head>
+
   <body>
     <nav>
       <div class="logo">DeepChest</div>
@@ -24,12 +51,26 @@
         </div>
       </div>
     </nav>
-    <!-- Uses the doctor-home-content class to utilize the common styling -->
+
+
     <div class="doctor-home-content">
       <h1 class="modify-account-title">Modify My Account</h1>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-messages">
+            {% for category, message in messages %}
+              <div class="alert {{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
       <!-- Modify Account Form -->
       <div class="modify-account-flex">
         <div class="modify-account-form">
+
+          <h3>Your Id: {{ doctor.USERID }}</h3>
           <form method="POST" class="modify-account-form-style">
             <input
               type="text"
@@ -59,54 +100,22 @@
               value="{{ doctor.phone }}"
               required
             />
-            <!--<input
-              type="password"
-              name="password"
-              placeholder="Password"
-              required
-            />-->
-            <!-- Birthday date picker -->
-            <!-- <input
-              type="date"
-              name="birthday"
-              placeholder="Birthday"
-              value="{{ doctor.reportDateofbirth }}"
-              required
-            /> -->
-            <!--
-            <input
-              type="text"
-              name="address"
-              placeholder="Address"
-              value="{{ doctor.address }}"
-              required
-            />
-            <input
-              type="text"
-              name="city"
-              placeholder="City"
-              value="{{ doctor.city }}"
-              required
-            />
-            <input
-              type="text"
-              name="province"
-              placeholder="Province"
-              value="{{ doctor.province }}"
-              required
-            />
-            <input
-              type="text"
-              name="postalCode"
-              placeholder="Postal Code"
-              value="{{ doctor.postalCode }}"
-              required
-            /> -->
-            <!-- Submit button -->
+
             <button type="submit" class="signup-btn">Update Account</button>
           </form>
         </div>
       </div>
     </div>
+
+    <script>
+      setTimeout(() => {
+        const alerts = document.querySelectorAll(".alert");
+        alerts.forEach((alert) => {
+          alert.style.transition = "opacity 0.5s";
+          alert.style.opacity = "0";
+          setTimeout(() => alert.remove(), 500);
+        });
+      }, 3000); 
+    </script>
   </body>
 </html>
