@@ -12,7 +12,7 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 db_config = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'test1234',
+    'password': 'Electron1704.',
     'database': 'DeepChest'
 }
 
@@ -866,7 +866,7 @@ def search():
         appointments = cursor.fetchall()
 
     # --- REPORTS ---
-    if user_type == 'patient':
+    '''if user_type == 'patient':
         if month_num and year_num:
             cursor.execute("""
                 SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
@@ -1023,7 +1023,7 @@ def search():
                     OR p.firstName LIKE %s
                     OR p.lastName LIKE %s
             """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
-        reports = cursor.fetchall()
+        reports = cursor.fetchall()'''
 
     # --- PATIENTS (for doctor and clinicadmin) ---
     patients = []
@@ -1049,7 +1049,7 @@ def search():
 
     results = {
         "appointments": appointments,
-        "reports": reports,
+        #"reports": reports,
         "patients": patients
     }
 
