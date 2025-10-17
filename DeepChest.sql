@@ -11,7 +11,7 @@ CREATE TABLE `clinic` (
 
  -- adds data into the clinic table
 INSERT INTO `clinic` (`clinicID`,`city`,`province`,`postalCode`) VALUES
-('clinic1','Surrey','BC','V3N0L3');
+('clinic1','Surrey','BC','V3N0L3'),
 ('clinic2','Vancouver','BC','V5K0A1');
 /*
         Creates a Table for login that includes USERID, username, password, userType, and clinicID

@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <title>Doctor Patients - DeepChest</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/doctor.css" />
+    <link rel="stylesheet" href="/static/logostyle.css" />
   </head>
   <body>
     <nav>
@@ -28,44 +30,60 @@
   <h1>My Patients</h1>
   <p>Manage and view details of your patients here.</p>
 
+  <div class="patient-search-bar-container">
+        <form method="GET" action="/doctor/search_patients">
+          <input
+            type="text"
+            name="query"
+            class="report-search-bar"
+            placeholder="Search for specific patients..."
+            autocomplete="off"
+          />
+          <button type="submit" class="patient-search-btn">Search</button>
+        </form>
+      </div>
+
+
           {% if patients %}
-            <table class="patient-table">
-              <thead>
-                <tr>
-                  <th>First Name</th>
-                  <th>Last Name</th>
-                  <th>Age</th>
-                  <th>Date of Birth</th>
-                  <th>Phone</th>
-                  <th>Email</th>
-                  <th>Address</th>
-                  <th>City</th>
-                  <th>Province</th>
-                  <th>Postal Code</th>
-                  <th>Insurance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for p in patients %}
-                <tr>
-                  <td>{{ p.firstName }}</td>
-                  <td>{{ p.lastName }}</td>
-                  <td>{{ p.age }}</td>
-                  <td>{{ p.dateofbirth }}</td>
-                  <td>{{ p.phone }}</td>
-                  <td>{{ p.email }}</td>
-                  <td>{{ p.address }}</td>
-                  <td>{{ p.city }}</td>
-                  <td>{{ p.province }}</td>
-                  <td>{{ p.postalCode }}</td>
-                  <td>{{ p.insurance }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          {% else %}
-            <p>No patients found.</p>
-          {% endif %}
+      <div class="doctor-reports-table">
+        <table class="search-table">
+          <thead>
+            <tr>
+              <th>First Name</th>
+              <th>Last Name</th>
+              <th>Age</th>
+              <th>Date of Birth</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Address</th>
+              <th>City</th>
+              <th>Province</th>
+              <th>Postal Code</th>
+              <th>Insurance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for patient in patients %}
+            <tr>
+              <td>{{ patient.firstName }}</td>
+              <td>{{ patient.lastName }}</td>
+              <td>{{ patient.age }}</td>
+              <td>{{ patient.dateofbirth }}</td>
+              <td>{{ patient.phone }}</td>
+              <td>{{ patient.email }}</td>
+              <td>{{ patient.address }}</td>
+              <td>{{ patient.city }}</td>
+              <td>{{ patient.province }}</td>
+              <td>{{ patient.postalCode }}</td>
+              <td>{{ patient.insurance }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="no-data">No patients found.</p>
+      {% endif %}
         </div>
 
   </body>

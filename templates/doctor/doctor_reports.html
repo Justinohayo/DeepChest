@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <title>Doctor Reports - DeepChest</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/doctor.css" />
+    <link rel="stylesheet" href="/static/logostyle.css" />
   </head>
   <body>
     <nav>
@@ -28,32 +30,55 @@
       <h1>Reports</h1>
       <p>View and upload diagnostic reports here.</p>
 
-      <h1>My Reports</h1>
+      <h2>Your Patient Reports</h2>
 
-      <table border="1">
+      <div class="report-search-bar-container">
+        <form method="GET" action="/doctor/search_reports">
+          <input
+            type="text"
+            name="query"
+            class="report-search-bar"
+            placeholder="Search for specific reports..."
+            autocomplete="off"
+          />
+          <button type="submit" class="report-search-btn">Search</button>
+        </form>
+      </div>
+
+
+      {% if reports %}
+      <table class="search-table">
         <thead>
           <tr>
             <th>Report ID</th>
-            <th>Patient</th>
-            <th>Date</th>
+            <th>Report Date</th>
+            <th>Patient Name</th>
             <th>File</th>
-            <th>Action</th>
           </tr>
         </thead>
         <tbody>
           {% for report in reports %}
-            <tr>
-              <td>{{ report.reportID }}</td>
-              <td>{{ report.reportID }}</td>
-              <td>{{ report.reportID }}</td>
-              <td>{{ report.files }}</td>
-              <td>
-                <a href="/doctor/reports/detail?reportID={{ report.reportID }}">View</a>
-              </td>
-            </tr>
+          <tr>
+            <td>{{ report.reportID }}</td>
+            <td>{{ report.reportDate }}</td>
+            <td>{{ report.firstName }} {{ report.lastName }}</td>
+            <td>
+              {% if report.files %}
+                <a href="/static/uploads/{{ report.files }}" class="file-link" target="_blank">
+                  {{ report.files }}
+                </a>
+              {% else %}
+                <em>No file uploaded</em>
+              {% endif %}
+            </td>
+          </tr>
           {% endfor %}
         </tbody>
       </table>
+      {% else %}
+        <p class="no-data">No reports available yet.</p>
+      {% endif %}
+    </div>
 
     </div>
   </body>

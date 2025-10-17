@@ -549,6 +549,64 @@ def doctor_patients():
                            patients=patients)
 
 
+# Doctor Search Patients Route
+@app.route('/doctor/search_patients', methods=['GET'])
+def doctor_search_patients():
+    if session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+
+    doctor_id = session.get('user_id')
+    doctor_username = session.get('username')
+
+    if not doctor_id:
+        return "Doctor not found", 404
+
+    # Get search query and normalize
+    query = request.args.get('query', '').strip()
+    search_query = f"%{query.lower()}%"
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    if query:
+        # Case-insensitive search with trimmed fields
+        cursor.execute("""
+            SELECT p.firstName, p.lastName, p.age, p.dateofbirth, p.phone, p.email,
+                   p.address, p.city, p.province, p.postalCode, p.insurance
+            FROM patient p
+            WHERE p.doctorID = %s AND (
+                LOWER(TRIM(p.firstName)) LIKE %s OR
+                LOWER(TRIM(p.lastName)) LIKE %s OR
+                LOWER(TRIM(p.email)) LIKE %s OR
+                LOWER(TRIM(p.phone)) LIKE %s OR
+                LOWER(TRIM(p.city)) LIKE %s
+            )
+            ORDER BY p.lastName, p.firstName
+        """, (doctor_id, search_query, search_query, search_query, search_query, search_query))
+    else:
+        # If no query, return all patients for this doctor
+        cursor.execute("""
+            SELECT p.firstName, p.lastName, p.age, p.dateofbirth, p.phone, p.email,
+                   p.address, p.city, p.province, p.postalCode, p.insurance
+            FROM patient p
+            WHERE p.doctorID = %s
+            ORDER BY p.lastName, p.firstName
+        """, (doctor_id,))
+
+    patients = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    # Render template with results and original query
+    return render_template(
+        'doctor/doctor_patients.html',
+        username=doctor_username,
+        patients=patients,
+        query=query
+    )
+
+
+
 # Doctor Reports Page
 @app.route('/doctor/reports')
 def doctor_reports():
@@ -562,7 +620,7 @@ def doctor_reports():
 
     # Pull all reports for this doctor, join patient info
     cursor.execute("""
-        SELECT r.reportID, r.files, p.firstName, p.lastName
+        SELECT r.reportID, r.files, p.firstName, p.lastName, r.reportDate
         FROM Reports r
         JOIN patient p ON r.patientID = p.USERID
         WHERE r.doctorID = %s
@@ -577,6 +635,83 @@ def doctor_reports():
         username=session.get('username'),
         reports=reports
     )
+
+
+@app.route('/doctor/search_reports', methods=['GET'])
+def doctor_search_reports():
+    if session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    query = request.args.get('query', '').strip()
+
+    # Month name support
+    month_map = {month.lower(): index for index, month in enumerate(calendar.month_name) if month}
+    query_lower = query.lower()
+    month_num = None
+    year_num = None
+    for name, num in month_map.items():
+        if name in query_lower:
+            month_num = num
+            match = re.search(rf"{name}\s+(\d{{4}})", query_lower)
+            if match:
+                year_num = int(match.group(1))
+            else:
+                match = re.search(rf"(\d{{4}})\s+{name}", query_lower)
+                if match:
+                    year_num = int(match.group(1))
+            break
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    # If user typed "March 2024" or similar
+    if month_num and year_num:
+        cursor.execute("""
+            SELECT r.reportID, r.reportDate, r.files,
+                   p.firstName AS patientFirstName, p.lastName AS patientLastName
+            FROM Reports r
+            JOIN patient p ON r.patientID = p.USERID
+            WHERE r.doctorID = %s AND MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
+            ORDER BY r.reportDate DESC
+        """, (user_id, month_num, year_num))
+
+    # If user typed just "March"
+    elif month_num:
+        cursor.execute("""
+            SELECT r.reportID, r.reportDate, r.files,
+                   p.firstName AS patientFirstName, p.lastName AS patientLastName
+            FROM Reports r
+            JOIN patient p ON r.patientID = p.USERID
+            WHERE r.doctorID = %s AND MONTH(r.reportDate) = %s
+            ORDER BY r.reportDate DESC
+        """, (user_id, month_num))
+
+    # Generic keyword search (report ID, date, patient name)
+    else:
+        cursor.execute("""
+            SELECT r.reportID, r.reportDate, r.files,
+                   p.firstName AS patientFirstName, p.lastName AS patientLastName
+            FROM Reports r
+            JOIN patient p ON r.patientID = p.USERID
+            WHERE r.doctorID = %s AND (
+                CAST(r.reportID AS CHAR) LIKE %s
+                OR r.reportDate LIKE %s
+                OR p.firstName LIKE %s
+                OR p.lastName LIKE %s
+            )
+            ORDER BY r.reportDate DESC
+        """, (user_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+
+    reports = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        'doctor/doctor_reports.html',
+        username=session.get('username'),
+        reports=reports
+    )
+
 
 
 # Doctor AI Diagnosis Page
