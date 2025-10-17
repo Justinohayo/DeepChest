@@ -309,7 +309,7 @@ def search_reports():
     cursor = conn.cursor(dictionary=True)
     if month_num and year_num:
         cursor.execute("""
-            SELECT r.reportID, r.reportDate, r.doctorID,
+            SELECT r.reportID,r.files, r.reportDate, r.doctorID,
                    d.firstName AS doctorFirstName, d.lastName AS doctorLastName
             FROM Reports r
             JOIN doctor d ON r.doctorID = d.USERID
@@ -318,7 +318,7 @@ def search_reports():
         """, (user_id, month_num, year_num))
     elif month_num:
         cursor.execute("""
-            SELECT r.reportID, r.reportDate, r.doctorID,
+            SELECT r.reportID,r.files, r.reportDate, r.doctorID,
                    d.firstName AS doctorFirstName, d.lastName AS doctorLastName
             FROM Reports r
             JOIN doctor d ON r.doctorID = d.USERID
@@ -327,7 +327,7 @@ def search_reports():
         """, (user_id, month_num))
     else:
         cursor.execute("""
-            SELECT r.reportID, r.reportDate, r.doctorID,
+            SELECT r.reportID,r.files, r.reportDate, r.doctorID,
                    d.firstName AS doctorFirstName, d.lastName AS doctorLastName
             FROM Reports r
             JOIN doctor d ON r.doctorID = d.USERID
