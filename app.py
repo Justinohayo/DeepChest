@@ -258,7 +258,7 @@ def patient_reports():
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor(dictionary=True)
         cursor.execute("""
-            SELECT r.reportID, r.reportDate, r.doctorID,
+            SELECT r.reportID,r.files, r.reportDate, r.doctorID,
                    d.firstName AS doctorFirstName, d.lastName AS doctorLastName
             FROM Reports r
             JOIN doctor d ON r.doctorID = d.USERID
