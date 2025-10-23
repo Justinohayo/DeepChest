@@ -408,3 +408,55 @@
 .results-search-btn:hover {
   background: #444;
 }
+
+/* Style guide for patient's add child page */
+.addchild-btn {
+  padding: 0.75em;
+  background: #000000;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 1em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-top: 10px;
+}
+/* Style guide for the signup form */
+.addchild-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+}
+
+.addchild-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 24px;
+  max-width: 600px;
+  background: #fff;
+  padding: 32px 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.07);
+}
+
+.addchild-form button {
+  grid-column: 1 / -1; /* Span both columns */
+  justify-self: center; /* Center the button horizontally */
+  width: 50%; /* Optional: make the button narrower */
+  margin-top: 20px;
+}
+
+.addchild-form input,
+.addchild-form select {
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.addchild-content h1 {
+  text-align: center;
+  margin-bottom: 24px;
+}

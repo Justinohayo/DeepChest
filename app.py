@@ -430,13 +430,157 @@ def patient_account():
     conn.close()
     return render_template('patient/p_modifyaccount.html', patient=patient)
 
-# Add Child Page for Patient
+# Add Child Page for Patient (GET shows form, POST creates child)
 @app.route('/patient/add-child', methods=['GET', 'POST'])
 def add_child():
     if session.get('userType') != 'patient':
         return redirect(url_for('login'))
-    # You can add POST logic here to handle child registration
-    return render_template('patient/add-child.html')
+
+    user_id = session.get('user_id')
+
+    if request.method == 'POST':
+        # Handle child creation (merged POST logic)
+        parent_id = session.get('user_id')
+
+        # Collect form data
+        clinicID = request.form.get('clinicID') or request.form.get('clinic') or session.get('clinicID')
+        doctorID = request.form.get('doctorID') or session.get('doctorID') or None
+        firstName = request.form.get('firstName', '').strip()
+        lastName = request.form.get('lastName', '').strip()
+        email = request.form.get('email', '').strip()
+        username = request.form.get('username', '').strip() or email
+        phoneNumber = request.form.get('phoneNumber', '').strip()
+        password = request.form.get('password', '').strip()
+        birthday = request.form.get('birthday', '').strip()
+        address = request.form.get('address', '').strip()
+        city = request.form.get('city', '').strip()
+        province = request.form.get('province', '').strip()
+        postalCode = request.form.get('postalCode', '').strip()
+        insurance = request.form.get('insurance', '').strip()
+
+        # Basic validation
+        if not firstName or not lastName or not password:
+            flash('Please provide at minimum first name, last name and password for the child.')
+            return redirect(url_for('add_child'))
+
+        # Compute age when birthday provided
+        age = None
+        if birthday:
+            try:
+                dob = datetime.strptime(birthday, '%Y-%m-%d').date()
+                today = date.today()
+                age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+            except Exception:
+                dob = None
+                age = None
+        else:
+            dob = None
+
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+
+        # Ensure parent has an email on file
+        cursor.execute("SELECT email FROM patient WHERE USERID = %s", (parent_id,))
+        parent_row = cursor.fetchone()
+        parent_email = None
+        if parent_row:
+            try:
+                parent_email = parent_row[0]
+            except Exception:
+                parent_email = parent_row.get('email') if isinstance(parent_row, dict) else None
+
+        if not parent_email and not session.get('email'):
+            cursor.close()
+            conn.close()
+            flash('Please add your email to your account before registering a child.')
+            return redirect(url_for('patient_account'))
+
+        try:
+            # Check if email already exists in patient table
+            if email:
+                cursor.execute("SELECT USERID FROM patient WHERE email = %s", (email,))
+                if cursor.fetchone():
+                    flash('Email is already in use. Choose a different email.')
+                    cursor.close()
+                    conn.close()
+                    return redirect(url_for('add_child'))
+
+            # Insert into login table for the child
+            cursor.execute(
+                "INSERT INTO login (username, password, userType, clinicID) VALUES (%s, %s, %s, %s)",
+                (username, password, 'patient', clinicID)
+            )
+            child_userid = cursor.lastrowid
+
+            # Insert into patient table for the child
+            cursor.execute(
+                "INSERT INTO patient (firstName, lastName, age, dateofbirth, USERID, address, city, province, postalCode, phone, email, insurance, doctorID, childID, clinicID) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (firstName, lastName, age, dob, child_userid, address, city, province, postalCode, phoneNumber, email, insurance, doctorID or None, None, clinicID)
+            )
+
+            # Create a childLink row linking to the parent
+            cursor.execute("INSERT INTO childLink (parentID) VALUES (%s)", (parent_id,))
+            link_id = cursor.lastrowid
+
+            # Create a child row referencing the link and parent
+            cursor.execute("INSERT INTO child (linkID, parentID) VALUES (%s, %s)", (link_id, parent_id))
+            child_id = cursor.lastrowid
+
+            # Update the child's patient row to store the childID (if desired by schema)
+            cursor.execute("UPDATE patient SET childID = %s WHERE USERID = %s", (str(child_id), child_userid))
+
+            conn.commit()
+            flash('Child account created successfully!')
+            cursor.close()
+            conn.close()
+            return redirect(url_for('patient_home'))
+        except mysql.connector.Error as e:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            flash('Database error: ' + str(e))
+            return redirect(url_for('add_child'))
+
+    # GET: show form
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    # Fetch patient info
+    cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id,))
+    patient = cursor.fetchone()
+
+    # Determine clinicID and doctorID (prefer patient table values)
+    clinic_id = None
+    doctor_id = None
+    if patient:
+        clinic_id = patient.get('clinicID')
+        doctor_id = patient.get('doctorID')
+
+    # Fallback to session values if DB values missing
+    if not clinic_id:
+        clinic_id = session.get('clinicID')
+    if not doctor_id:
+        doctor_id = session.get('doctorID')
+
+    # Fetch clinic info
+    clinic = None
+    if clinic_id:
+        cursor.execute("SELECT * FROM clinic WHERE clinicID = %s", (clinic_id,))
+        clinic = cursor.fetchone()
+
+    # Fetch doctor info
+    doctor = None
+    if doctor_id:
+        cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (doctor_id,))
+        doctor = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    # Render template with DB-provided objects (may be None)
+    return render_template('patient/add-child.html', patient=patient, doctor=doctor, clinic=clinic)
+
+
 
 
 # Doctor Home Page
