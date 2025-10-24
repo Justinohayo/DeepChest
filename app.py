@@ -654,6 +654,50 @@ def doctor_appointments_detail():
                            username=session.get('username'))
 
 
+@app.route('/doctor/search_appointments', methods=['GET'])
+def search_appointments():
+    if session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+
+    # Get search text from the input field
+    search_term = request.args.get('query', '').strip()
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    if search_term:
+        cursor.execute("""
+            SELECT a.apptID, a.appointment_date, a.appointment_time, a.symptoms,
+                   p.firstName, p.lastName
+            FROM appointments a
+            JOIN patient p ON a.patientID = p.USERID
+            WHERE p.firstName LIKE %s
+               OR p.lastName LIKE %s
+               OR a.symptoms LIKE %s
+               OR a.appointment_date LIKE %s
+            ORDER BY a.appointment_date, a.appointment_time
+        """, (f"%{search_term}%", f"%{search_term}%", f"%{search_term}%", f"%{search_term}%"))
+    else:
+        # If no search term, show all appointments
+        cursor.execute("""
+            SELECT a.apptID, a.appointment_date, a.appointment_time, a.symptoms,
+                   p.firstName, p.lastName
+            FROM appointments a
+            JOIN patient p ON a.patientID = p.USERID
+            ORDER BY a.appointment_date, a.appointment_time
+        """)
+
+    appointments = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return render_template('doctor/doctor_appointments.html',
+                           appointments=appointments,
+                           username=session.get('username'),
+                           query=search_term)
+
+
 
 # Database connection helper
 def get_db_connection():
@@ -885,7 +929,7 @@ def doctor_ai_diagnosis():
         prediction=prediction
     )
 
-#modify doctor account details
+#request to modify doctor account details
 @app.route('/doctor/account', methods=['GET', 'POST'])
 def doctor_account():
     if session.get('userType') != 'doctor':
@@ -896,36 +940,30 @@ def doctor_account():
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor(dictionary=True)
 
+    # Always fetch current info to display
+    cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id,))
+    doctor = cursor.fetchone()
+
     if request.method == 'POST':
         first_name = request.form.get('firstName')
         last_name = request.form.get('lastName')
         email = request.form.get('email')
         phone = request.form.get('phoneNumber')
 
+        # Instead of updating the doctor table, insert a request
         cursor.execute("""
-            UPDATE doctor
-            SET firstName = %s,
-                lastName = %s,
-                email = %s,
-                phone = %s
-            WHERE USERID = %s
-        """, (first_name, last_name, email, phone, user_id))
+            INSERT INTO account_update_requests (
+                doctorID, requested_firstName, requested_lastName, 
+                requested_email, requested_phone
+            ) VALUES (%s, %s, %s, %s, %s)
+        """, (user_id, first_name, last_name, email, phone))
         conn.commit()
-
-        cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id,))
-        doctor = cursor.fetchone()
-
-        session['firstName'] = doctor['firstName']
-        session['lastName'] = doctor['lastName']
 
         cursor.close()
         conn.close()
 
-        flash("Account updated successfully!", "success")
+        flash("Your update request has been sent to the admin for approval.", "info")
         return render_template('doctor/doctor_modifyaccount.html', doctor=doctor)
-
-    cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id,))
-    doctor = cursor.fetchone()
 
     cursor.close()
     conn.close()

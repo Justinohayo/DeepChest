@@ -189,3 +189,16 @@ PRIMARY KEY (messageID),
    FOREIGN KEY (patientID) REFERENCES patient(USERID),
    FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+CREATE TABLE `account_update_requests` (
+    `requestID` INT AUTO_INCREMENT PRIMARY KEY,
+    `doctorID` INT NOT NULL,
+    `requested_firstName` VARCHAR(100),
+    `requested_lastName` VARCHAR(100),
+    `requested_email` VARCHAR(255),
+    `requested_phone` VARCHAR(20),
+    `request_date` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `status` ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+    FOREIGN KEY (`doctorID`) REFERENCES `doctor`(`USERID`)
+);
+
