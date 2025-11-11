@@ -4,6 +4,7 @@ import webbrowser
 import calendar
 import re
 from datetime import date, datetime
+import json
 
 app = Flask(__name__)
 app.secret_key = '1234'  # Needed for flash messages and sessions
@@ -214,6 +215,7 @@ def patient_manage_appointment(appointment_id):
     # Fetch the appointment for this patient
     cursor.execute("""
         SELECT a.apptID, a.appointment_date, a.appointment_time, a.symptoms,
+               a.doctorID AS doctorID,
                d.firstName AS doctorFirstName, d.lastName AS doctorLastName
         FROM appointments a
         JOIN doctor d ON a.doctorID = d.USERID
@@ -228,168 +230,451 @@ def patient_manage_appointment(appointment_id):
         return redirect(url_for('patient_appointments'))
 
     if request.method == 'POST':
-        # Example: update symptoms (add more fields as needed)
+        # Update date/time/symptoms. Validate conflicts for the assigned doctor.
         new_symptoms = request.form.get('symptoms')
-        cursor.execute("""
-            UPDATE appointments SET symptoms = %s WHERE apptID = %s AND patientID = %s
-        """, (new_symptoms, appointment_id, user_id))
-        conn.commit()
-        flash('Appointment updated successfully!')
-        cursor.close()
-        conn.close()
-        return redirect(url_for('patient_appointments'))
+        new_date = request.form.get('appointment_date')
+        new_time = request.form.get('appointment_time')
+
+        # Normalize time format if needed (allow HH:MM)
+        if new_time and len(new_time) == 5:
+            new_time = new_time + ':00'
+
+        # If doctorID exists, check for conflicts excluding this appointment
+        doctor_id = None
+        try:
+            # appointment may be dict-like
+            doctor_id = appointment.get('doctorID') if isinstance(appointment, dict) else appointment[ 'doctorID' ] if appointment else None
+        except Exception:
+            doctor_id = None
+
+        if doctor_id and new_date and new_time:
+            cursor.execute("SELECT apptID FROM appointments WHERE doctorID = %s AND appointment_date = %s AND appointment_time = %s AND apptID != %s", (doctor_id, new_date, new_time, appointment_id))
+            if cursor.fetchone():
+                cursor.close()
+                conn.close()
+                flash('Selected time slot is not available for your doctor. Please choose another time.')
+                return redirect(url_for('patient_manage_appointment', appointment_id=appointment_id))
+
+        # Perform update (only fields provided)
+        try:
+            cursor.execute("""
+                UPDATE appointments SET appointment_date = %s, appointment_time = %s, symptoms = %s
+                WHERE apptID = %s AND patientID = %s
+            """, (new_date, new_time, new_symptoms, appointment_id, user_id))
+            conn.commit()
+            flash('Appointment updated successfully!')
+            cursor.close()
+            conn.close()
+            return redirect(url_for('patient_appointments'))
+        except mysql.connector.Error as e:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            flash('Database error: ' + str(e))
+            return redirect(url_for('patient_manage_appointment', appointment_id=appointment_id))
 
     cursor.close()
     conn.close()
-    return render_template('patient/p_manageappointments.html', appointment=appointment)
+
+    # Normalize appointment fields so they are JSON-serializable for the template
+    appt_for_template = {}
+    if isinstance(appointment, dict):
+        for k, v in appointment.items():
+            # Dates -> YYYY-MM-DD
+            if k in ('appointment_date', 'reportDate') and hasattr(v, 'strftime'):
+                try:
+                    appt_for_template[k] = v.strftime('%Y-%m-%d')
+                except Exception:
+                    appt_for_template[k] = str(v)
+            # Times: could be time or timedelta depending on driver
+            elif k == 'appointment_time':
+                if v is None:
+                    appt_for_template[k] = None
+                else:
+                    # datetime.time
+                    if hasattr(v, 'strftime'):
+                        appt_for_template[k] = v.strftime('%H:%M:%S')
+                    # timedelta (mysql sometimes returns TIME as timedelta)
+                    elif hasattr(v, 'total_seconds'):
+                        secs = int(v.total_seconds())
+                        hh = secs // 3600
+                        mm = (secs % 3600) // 60
+                        ss = secs % 60
+                        appt_for_template[k] = f"{hh:02d}:{mm:02d}:{ss:02d}"
+                    else:
+                        appt_for_template[k] = str(v)
+            else:
+                appt_for_template[k] = v
+    else:
+        # Fallback: just pass the original object (template will likely fail if not serializable)
+        appt_for_template = appointment
+
+    return render_template('patient/p_manageappointments.html', appointment=appt_for_template)
 
 @app.route('/patient/book-appointment', methods=['GET', 'POST'])
 def patient_book_appointment():
     if session.get('userType') != 'patient':
         return redirect(url_for('login'))
-    # You can add POST logic here to handle booking if needed
-    return render_template('patient/p_bookappointment.html')
 
-# Patient Reports Page
-@app.route('/patient/reports')
-def patient_reports():
-    if session.get('userType') == 'patient':
-        user_id = session.get('user_id')
+    user_id = session.get('user_id')
+
+    if request.method == 'POST':
+        # Collect form inputs
+        appointment_date = request.form.get('appointment_date')  # expected YYYY-MM-DD
+        appointment_time = request.form.get('appointment_time')  # expected HH:MM:SS
+        symptoms = request.form.get('symptoms')
+
+        if not appointment_date or not appointment_time:
+            flash('Please select a date and time for your appointment.')
+            return redirect(url_for('patient_book_appointment'))
+
+        # Normalize time (allow HH:MM or HH:MM:SS)
+        if len(appointment_time) == 5:
+            appointment_time = appointment_time + ':00'
+
+        # Fetch patient's doctor and clinic
         conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT r.reportID,r.files, r.reportDate, r.doctorID,
-                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
-            FROM Reports r
-            JOIN doctor d ON r.doctorID = d.USERID
-            WHERE r.patientID = %s
-            ORDER BY r.reportDate DESC
-        """, (user_id,))
-        reports = cursor.fetchall()
+        cursor = conn.cursor()
+        cursor.execute("SELECT doctorID, clinicID FROM patient WHERE USERID = %s", (user_id,))
+        prow = cursor.fetchone()
+        doctor_id = None
+        clinic_id = None
+        if prow:
+            try:
+                doctor_id = prow[0]
+                clinic_id = prow[1]
+            except Exception:
+                # handle dict cursor vs tuple
+                doctor_id = prow.get('doctorID') if isinstance(prow, dict) else None
+                clinic_id = prow.get('clinicID') if isinstance(prow, dict) else None
+
+        # If no doctor assigned, we still allow booking without doctor (doctorID NULL)
+
+        # Check for conflict (same doctor, same date/time)
+        if doctor_id:
+            cursor.execute("SELECT apptID FROM appointments WHERE doctorID = %s AND appointment_date = %s AND appointment_time = %s", (doctor_id, appointment_date, appointment_time))
+            if cursor.fetchone():
+                cursor.close()
+                conn.close()
+                flash('Selected time slot is not available. Please choose another time.')
+                return redirect(url_for('patient_book_appointment'))
+
+        # Insert appointment
+        try:
+            cursor.execute("INSERT INTO appointments (patientID, appointment_date, appointment_time, doctorID, clinicID, symptoms) VALUES (%s, %s, %s, %s, %s, %s)", (user_id, appointment_date, appointment_time, doctor_id, clinic_id, symptoms))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            flash('Appointment booked successfully!')
+            return redirect(url_for('patient_appointments'))
+        except mysql.connector.Error as e:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            flash('Database error: ' + str(e))
+            return redirect(url_for('patient_book_appointment'))
+
+    # GET: render calendar with patient's existing appointment dates
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT appointment_date FROM appointments WHERE patientID = %s", (user_id,))
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    existing_dates = []
+    for r in rows:
+        try:
+            d = r[0]
+        except Exception:
+            d = r.get('appointment_date') if isinstance(r, dict) else None
+        if d:
+            # format to YYYY-MM-DD
+            if hasattr(d, 'strftime'):
+                existing_dates.append(d.strftime('%Y-%m-%d'))
+            else:
+                existing_dates.append(str(d))
+
+    return render_template('patient/p_bookappointment.html', existing_appointments=existing_dates)
+
+
+@app.route('/patient/booked_times')
+def patient_booked_times():
+    # Returns JSON list of times already booked for the patient's doctor on a date
+    if session.get('userType') != 'patient':
+        return json.dumps([]), 401
+    user_id = session.get('user_id')
+    date_q = request.args.get('date')
+    if not date_q:
+        return json.dumps([]), 400
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+    # get doctor for this patient
+    cursor.execute("SELECT doctorID FROM patient WHERE USERID = %s", (user_id,))
+    prow = cursor.fetchone()
+    doctor_id = None
+    if prow:
+        try:
+            doctor_id = prow[0]
+        except Exception:
+            doctor_id = prow.get('doctorID') if isinstance(prow, dict) else None
+    if not doctor_id:
         cursor.close()
         conn.close()
-        for r in reports:
-            if isinstance(r['reportDate'], str):
-                try:
-                    r['reportDate'] = datetime.strptime(r['reportDate'], '%Y-%m-%d')
-                except Exception:
-                    pass
-        return render_template(
-            'patient/myreports.html',
-            user_id=user_id,
-            reports=reports
-        )
-    return redirect(url_for('login'))
+        return json.dumps([])
+    cursor.execute("SELECT appointment_time FROM appointments WHERE doctorID = %s AND appointment_date = %s", (doctor_id, date_q))
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    times = [r[0].strftime('%H:%M:%S') if hasattr(r[0], 'strftime') else str(r[0]) for r in rows]
+    return json.dumps(times)
 
-@app.route('/patient/search_reports', methods=['GET'])
-def search_reports():
-    if session.get('userType') != 'patient':
-        return redirect(url_for('login'))
-    user_id = session.get('user_id')
-    query = request.args.get('query', '').strip()
+# Patient Reports Page
+#@app.route('/patient/reports')
+#def patient_reports():
+    #if session.get('userType') == 'patient':
+       # user_id = session.get('user_id')
+        #conn = mysql.connector.connect(**db_config)
+        #cursor = conn.cursor(dictionary=True)
+        #cursor.execute("""
+           # SELECT r.reportID,r.files, r.reportDate, r.doctorID,
+             #      d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            #FROM Reports r
+           # JOIN doctor d ON r.doctorID = d.USERID
+           # WHERE r.patientID = %s
+           # ORDER BY r.reportDate DESC
+       # """, (user_id,))
+        #reports = cursor.fetchall()
+       # cursor.close()
+       # conn.close()
+       # for r in reports:
+           # if isinstance(r['reportDate'], str):
+               # try:
+                    #r['reportDate'] = datetime.strptime(r['reportDate'], '%Y-%m-%d')
+               # except Exception:
+                   # pass
+       # return render_template(
+            #'patient/myreports.html',
+           # user_id=user_id,
+           # reports=reports
+        #)
+    #return redirect(url_for('login'))
+
+#@app.route('/patient/search_reports', methods=['GET'])
+#def search_reports():
+    #if session.get('userType') != 'patient':
+        #return redirect(url_for('login'))
+    #user_id = session.get('user_id')
+   # query = request.args.get('query', '').strip()
 
     # Month name support
-    month_map = {month.lower(): index for index, month in enumerate(calendar.month_name) if month}
-    query_lower = query.lower()
-    month_num = None
-    year_num = None
-    for name, num in month_map.items():
-        if name in query_lower:
-            month_num = num
-            match = re.search(rf"{name}\s+(\d{{4}})", query_lower)
-            if match:
-                year_num = int(match.group(1))
-            else:
-                match = re.search(rf"(\d{{4}})\s+{name}", query_lower)
-                if match:
-                    year_num = int(match.group(1))
-            break
+   # month_map = {month.lower(): index for index, month in enumerate(calendar.month_name) if month}
+    #query_lower = query.lower()
+    #month_num = None
+    #year_num = None
+    #for name, num in month_map.items():
+       # if name in query_lower:
+           # month_num = num
+           # match = re.search(rf"{name}\s+(\d{{4}})", query_lower)
+            #if match:
+                #year_num = int(match.group(1))
+            #else:
+                #match = re.search(rf"(\d{{4}})\s+{name}", query_lower)
+                #if match:
+                   # year_num = int(match.group(1))
+           # break
 
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
-    if month_num and year_num:
-        cursor.execute("""
-            SELECT r.reportID,r.files, r.reportDate, r.doctorID,
-                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
-            FROM Reports r
-            JOIN doctor d ON r.doctorID = d.USERID
-            WHERE r.patientID = %s AND MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
-            ORDER BY r.reportDate DESC
-        """, (user_id, month_num, year_num))
-    elif month_num:
-        cursor.execute("""
-            SELECT r.reportID,r.files, r.reportDate, r.doctorID,
-                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
-            FROM Reports r
-            JOIN doctor d ON r.doctorID = d.USERID
-            WHERE r.patientID = %s AND MONTH(r.reportDate) = %s
-            ORDER BY r.reportDate DESC
-        """, (user_id, month_num))
-    else:
-        cursor.execute("""
-            SELECT r.reportID,r.files, r.reportDate, r.doctorID,
-                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
-            FROM Reports r
-            JOIN doctor d ON r.doctorID = d.USERID
-            WHERE r.patientID = %s AND (
-                CAST(r.reportID AS CHAR) LIKE %s
-                OR r.reportDate LIKE %s
-                OR d.firstName LIKE %s
-                OR d.lastName LIKE %s
-            )
-            ORDER BY r.reportDate DESC
-        """, (user_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
-    reports = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return render_template(
-        'patient/myreports.html',
-        user_id=user_id,
-        reports=reports
-    )
+   # conn = mysql.connector.connect(**db_config)
+   # cursor = conn.cursor(dictionary=True)
+   # if month_num and year_num:
+        #cursor.execute("""
+            #SELECT r.reportID,r.files, r.reportDate, r.doctorID,
+                  # d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            #FROM Reports r
+            #JOIN doctor d ON r.doctorID = d.USERID
+            #WHERE r.patientID = %s AND MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
+           # ORDER BY r.reportDate DESC
+       # """, (user_id, month_num, year_num))
+    #elif month_num:
+        #cursor.execute("""
+           # SELECT r.reportID,r.files, r.reportDate, r.doctorID,
+                  # d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            #FROM Reports r
+            #JOIN doctor d ON r.doctorID = d.USERID
+            #WHERE r.patientID = %s AND MONTH(r.reportDate) = %s
+            #ORDER BY r.reportDate DESC
+        #""", (user_id, month_num))
+   # else:
+        #cursor.execute("""
+           # SELECT r.reportID,r.files, r.reportDate, r.doctorID,
+              #     d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+           # FROM Reports r
+            #JOIN doctor d ON r.doctorID = d.USERID
+            #WHERE r.patientID = %s AND (
+            #    CAST(r.reportID AS CHAR) LIKE %s
+            #    OR r.reportDate LIKE %s
+            #    OR d.firstName LIKE %s
+            #    OR d.lastName LIKE %s
+            #)
+            #ORDER BY r.reportDate DESC
+       # """, (user_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+   # reports = cursor.fetchall()
+    #cursor.close()
+   # conn.close()
+   # return render_template(
+        #'patient/myreports.html',
+       # user_id=user_id,
+       # reports=reports
+   # )
 
 # Report details page for patients
-@app.route('/patient/report_details')
-def patient_report_details():
+#@app.route('/patient/report_details')
+#def patient_report_details():
+   # if session.get('userType') != 'patient':
+      #  return redirect(url_for('login'))
+   # report_id = request.args.get('reportID')
+   # user_id = session.get('user_id')
+   # conn = mysql.connector.connect(**db_config)
+   # cursor = conn.cursor(dictionary=True)
+   # cursor.execute("""
+     #   SELECT r.*, d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+    #    FROM Reports r
+    #    JOIN doctor d ON r.doctorID = d.USERID
+   # WHERE r.reportID = %s AND r.patientID = %s
+   # """, (report_id, user_id))
+   # report = cursor.fetchone()
+   # cursor.close()
+   # conn.close()
+  #  if not report:
+        #flash("Report not found.", "danger")
+      #  return redirect(url_for('patient_reports'))
+   # return render_template('patient/reportdetails.html', report=report)
+
+# Patient Messages Page (GET: show form, POST: send/save message)
+@app.route('/patient/messages', methods=['GET', 'POST'])
+def patient_messages():
     if session.get('userType') != 'patient':
         return redirect(url_for('login'))
-    report_id = request.args.get('reportID')
+
     user_id = session.get('user_id')
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT r.*, d.firstName AS doctorFirstName, d.lastName AS doctorLastName
-        FROM Reports r
-        JOIN doctor d ON r.doctorID = d.USERID
-        WHERE r.reportID = %s AND r.patientID = %s
-    """, (report_id, user_id))
-    report = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    if not report:
-        flash("Report not found.", "danger")
-        return redirect(url_for('patient_reports'))
-    return render_template('patient/reportdetails.html', report=report)
 
-# Patient Messages Page
-@app.route('/patient/messages')
-def patient_messages():
-    if session.get('userType') == 'patient':
-        return render_template(
-            'patient/messages.html',
-            user_id=session.get('user_id')
-        )
-    return redirect(url_for('login'))
+    # Get DB connection and fetch doctors for the select box
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
 
-# Patient Notifications Page
-@app.route('/patient/notifications')
+        clinic_id = session.get('clinicID')
+        if clinic_id:
+            cursor.execute('SELECT USERID, firstName, lastName FROM doctor WHERE clinicID = %s', (clinic_id,))
+        else:
+            cursor.execute('SELECT USERID, firstName, lastName FROM doctor')
+        doctors = cursor.fetchall()
+
+        if request.method == 'POST':
+            doctor_id = request.form.get('doctorID')
+            subject = (request.form.get('subject') or '').strip()
+            body = (request.form.get('body') or '').strip()
+
+            # Basic validation
+            if not doctor_id:
+                flash('Please select a doctor to send the message to.', 'error')
+                return render_template('patient/messages.html', doctors=doctors)
+            if not subject:
+                flash('Please provide a subject for the message.', 'error')
+                return render_template('patient/messages.html', doctors=doctors)
+            if not body:
+                flash('Please write a message.', 'error')
+                return render_template('patient/messages.html', doctors=doctors)
+
+            try:
+                ins = conn.cursor()
+                # messages table schema: (messageID, patientID, doctorID, content, time_sent)
+                # There is no separate subject column; store subject+body together in content
+                content = f"Subject: {subject}\n\n{body}"
+                ins.execute(
+                    'INSERT INTO messages (patientID, doctorID, content) VALUES (%s, %s, %s)',
+                    (user_id, doctor_id, content)
+                )
+                conn.commit()
+                flash('Message sent successfully.', 'success')
+                ins.close()
+                cursor.close()
+                conn.close()
+                return redirect(url_for('patient_messages'))
+            except mysql.connector.Error as e:
+                conn.rollback()
+                flash('Failed to send message: {}'.format(str(e)), 'error')
+                return render_template('patient/messages.html', doctors=doctors)
+
+        # GET
+        cursor.close()
+        conn.close()
+        return render_template('patient/messages.html', doctors=doctors)
+
+    except mysql.connector.Error as err:
+        flash('Database error: {}'.format(err), 'error')
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return render_template('patient/messages.html', doctors=[])
+
+# Patient Notifications Page (GET: show form, POST: opt-in)
+@app.route('/patient/notifications', methods=['GET', 'POST'])
 def patient_notifications():
-    if session.get('userType') == 'patient':
-        return render_template(
-            'patient/notifications.html',
-            user_id=session.get('user_id')
-        )
-    return redirect(url_for('login'))
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    user_id = session.get('user_id')
+
+    if request.method == 'POST':
+        method = (request.form.get('method') or '').strip().lower()
+        contact = (request.form.get('contact') or '').strip()
+
+        if method not in ('phone', 'email') or not contact:
+            flash('Please select a valid notification method and provide contact details.', 'error')
+            return render_template('patient/notifications.html', user_id=user_id)
+
+        try:
+            conn = mysql.connector.connect(**db_config)
+            cursor = conn.cursor()
+            # Add data into notifications table
+            cursor.execute(
+                """
+                INSERT INTO notifications (patientID, notification_type, contact_info, notification_status)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                  notification_type = VALUES(notification_type),
+                  contact_info = VALUES(contact_info),
+                  notification_status = VALUES(notification_status)
+                """,
+                (user_id, method, contact, 1)
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+            flash('You have successfully opted in for notifications.', 'success')
+            return redirect(url_for('patient_notifications'))
+        except mysql.connector.Error as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            flash('Database error: {}'.format(str(e)), 'error')
+            try:
+                cursor.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
+            return render_template('patient/notifications.html', user_id=user_id)
+
+    # GET
+    return render_template('patient/notifications.html', user_id=user_id)
 
 
 # Patient Manage Account Page (GET: pre-fill, POST: update)
