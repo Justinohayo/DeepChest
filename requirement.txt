@@ -2,7 +2,7 @@ This file is for frozen dependencies are all the library that is needed to be in
 - boto3
 - flask
 - gunicorn
-- torch, torchvisoin (load & run the AI model)
+- torch, torchvision (load & run the AI model)
 - pillow (image handling)
 - opencv-python-headless (resizing, cropping, preprocessing)
 - scikit-image, numpy?
