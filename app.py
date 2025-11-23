@@ -11,10 +11,10 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 
 # Database connection config
 db_config = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'test1234',
-    'database': 'DeepChest'
+    'host': 'mysql-database.cjogeuu2gnn5.ca-central-1.rds.amazonaws.com',
+    'user': 'admin',
+    'password': 'AdminIPA',
+    'database': 'DeepChest_DB'
 }
 
 # Configures Route for the home page
