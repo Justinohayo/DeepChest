@@ -65,18 +65,11 @@
         </div>
       </div>
 
-      <!-- embed the appointment as JSON for client-side initialization -->
-      <script id="appointment-data" type="application/json">{{ appointment|tojson }}</script>
       <script>
-  
-        // preselect the appointment's date/time and allow editing.
-        try {
-          window.appointment = JSON.parse(document.getElementById('appointment-data')?.textContent || '{}');
-        } catch (e) {
-          window.appointment = {};
-        }
-
         document.addEventListener('DOMContentLoaded', ()=>{
+          // Appointment data passed via data attributes
+          const apptDate = document.getElementById('selected-date').value;
+          const apptTime = document.getElementById('selected-time').value;
           const times = ['09:00:00','09:30:00','10:00:00','10:30:00','11:00:00','11:30:00','13:00:00','13:30:00','14:00:00','14:30:00','15:00:00','15:30:00'];
           const timeslotsEl = document.getElementById('timeslots');
           const selectedTimeInput = document.getElementById('selected-time');
@@ -90,7 +83,7 @@
               btn.className = 'timeslot-btn';
               btn.textContent = t.slice(0,5);
               // preselect if matches appointment time
-              if(window.appointment && window.appointment.appointment_time && t.startsWith(window.appointment.appointment_time.slice(0,5))) {
+              if(apptTime && t.startsWith(apptTime.slice(0,5))) {
                 btn.classList.add('selected');
                 selectedTimeInput.value = t;
               }
@@ -137,7 +130,7 @@
                 cell.textContent = d;
                 const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
                 // mark if it's the appointment date
-                if(window.appointment && window.appointment.appointment_date === iso){
+                if(apptDate === iso){
                   cell.classList.add('appointment-mark');
                   cell.classList.add('selected');
                 }
@@ -153,7 +146,7 @@
                         const tt = b.textContent.trim();
                         const ttss = tt + ':00';
                         // allow the current appointment's time even if booked
-                        if(booked.includes(ttss) && !(window.appointment && window.appointment.appointment_time && ttss === window.appointment.appointment_time)){
+                        if(booked.includes(ttss) && ttss !== apptTime){
                           b.disabled = true;
                           b.classList.add('disabled');
                         }
@@ -177,15 +170,15 @@
           buildCalendar(document.getElementById('calendar'));
 
           // if appointment date exists, pre-select it and fetch booked times so UI shows unavailable slots
-          if(window.appointment && window.appointment.appointment_date){
+          if(apptDate){
             // trigger the same logic as clicking the date: fetch booked times and disable them
-            fetch(`/patient/booked_times?date=${window.appointment.appointment_date}`)
+            fetch(`/patient/booked_times?date=${apptDate}`)
               .then(r=>{ if(!r.ok) return []; return r.json(); })
               .then(booked=>{
                 document.querySelectorAll('.timeslot-btn').forEach(b=>{
                   const tt = b.textContent.trim();
                   const ttss = tt + ':00';
-                  if(booked.includes(ttss) && !(window.appointment && window.appointment.appointment_time && ttss === window.appointment.appointment_time)){
+                  if(booked.includes(ttss) && ttss !== apptTime){
                     b.disabled = true;
                     b.classList.add('disabled');
                   }

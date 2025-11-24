@@ -37,7 +37,7 @@
       <div class="booking-grid">
         <div class="calendar-panel">
           <h3>APPOINTMENTS LIST</h3>
-          <div id="calendar" class="calendar-container"></div>
+          <div id="calendar" class="calendar-container" data-existing-dates="{{ (existing_appointments|default([]))|join(',') }}"></div>
         </div>
 
         <div class="info-panel">
@@ -63,20 +63,10 @@
         </div>
       </div>
 
-      <!-- existing_appointments JSON (server-rendered). Parsed to window.existingAppointments -->
-      <script id="existing-appointments" type="application/json">
-        {{ (existing_appointments|default([]))|tojson }}
-      </script>
       <script>
-        // Parse JSON into window.existingAppointments (fallback to empty array)
-        try {
-          window.existingAppointments = JSON.parse(document.getElementById('existing-appointments')?.textContent || '[]');
-        } catch (e) {
-          window.existingAppointments = [];
-        }
-
-        // UI: use window.existingAppointments and /patient/booked_times to render calendar/timeslots
         document.addEventListener('DOMContentLoaded', ()=>{
+          // Existing appointment dates passed via data attribute
+          const existingDates = document.getElementById('calendar').dataset.existingDates ? document.getElementById('calendar').dataset.existingDates.split(',') : [];
           // Simple calendar + timeslot UI
           const times = ['09:00:00','09:30:00','10:00:00','10:30:00','11:00:00','11:30:00','13:00:00','13:30:00','14:00:00','14:30:00','15:00:00','15:30:00'];
           const timeslotsEl = document.getElementById('timeslots');
@@ -134,9 +124,8 @@
                 cell.className = 'calendar-cell';
                 cell.textContent = d;
                 const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                // mark if has appointment (passed from server)
-                const existing = window.existingAppointments || [];
-                if(existing.includes(iso)){
+                // mark if has appointment
+                if(existingDates.includes(iso)){
                   cell.classList.add('appointment-mark');
                 }
                 cell.addEventListener('click', ()=>{
