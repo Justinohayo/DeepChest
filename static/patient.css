@@ -548,12 +548,6 @@
   margin-bottom: 6px;
 }
 
-.notifications-input,
-.notifications-select {
-  width: 100%;
-  padding: 10px;
-  box-sizing: border-box;
-}
 
 .notifications-btn {
   padding: 0.75em 1.2em;
