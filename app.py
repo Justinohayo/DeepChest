@@ -404,13 +404,13 @@ def patient_book_appointment():
 
 @app.route('/patient/booked_times')
 def patient_booked_times():
-    # Returns JSON list of times already booked for the patient's doctor on a date
+    # Returns comma-separated list of times already booked for the patient's doctor on a date
     if session.get('userType') != 'patient':
-        return json.dumps([]), 401
+        return '', 401
     user_id = session.get('user_id')
     date_q = request.args.get('date')
     if not date_q:
-        return json.dumps([]), 400
+        return '', 400
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
     # get doctor for this patient
@@ -425,13 +425,31 @@ def patient_booked_times():
     if not doctor_id:
         cursor.close()
         conn.close()
-        return json.dumps([])
+        return ''
     cursor.execute("SELECT appointment_time FROM appointments WHERE doctorID = %s AND appointment_date = %s", (doctor_id, date_q))
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
     times = [r[0].strftime('%H:%M:%S') if hasattr(r[0], 'strftime') else str(r[0]) for r in rows]
-    return json.dumps(times)
+    return ','.join(times)
+
+@app.route('/admin/booked_times')
+def admin_booked_times():
+    # Returns comma-separated list of times already booked for a specific doctor on a date
+    if session.get('userType') != 'clinicadmin':
+        return '', 401
+    doctor_id = request.args.get('doctor_id')
+    date_q = request.args.get('date')
+    if not doctor_id or not date_q:
+        return '', 400
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+    cursor.execute("SELECT appointment_time FROM appointments WHERE doctorID = %s AND appointment_date = %s", (doctor_id, date_q))
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    times = [r[0].strftime('%H:%M:%S') if hasattr(r[0], 'strftime') else str(r[0]) for r in rows]
+    return ','.join(times)
 
 # Patient Reports Page
 #@app.route('/patient/reports')
@@ -1274,18 +1292,21 @@ def admin_appointmennts():
     if session.get('userType') != 'clinicadmin':
        return redirect(url_for('login'))
     
+    clinic_id = session.get('clinicID')
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor(dictionary=True)
 
-    #Join appointments with patient info with of the corresponding clinic 
+    #Join appointments with patient and doctor info filtered by clinic
     cursor.execute("""
         SELECT a.apptID, a.appointment_date, a.appointment_time, a.symptoms, 
-                   p.firstName, p.lastName
-
+               p.firstName, p.lastName,
+               d.firstName AS doctorFirstName, d.lastName AS doctorLastName
         FROM appointments a
         JOIN patient p ON a.patientID = p.USERID
+        LEFT JOIN doctor d ON a.doctorID = d.USERID
+        WHERE a.clinicID = %s
         ORDER BY a.appointment_date, a.appointment_time 
-    """)
+    """, (clinic_id,))
     appointments = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -1293,6 +1314,158 @@ def admin_appointmennts():
     return render_template('/clinic_admin/AppointmentAdmin.html',
                            appointments=appointments,
                            username=session.get('username'))
+
+# Handle the selection of an appointment to edit (admin)
+@app.route('/admin/edit-appointments', methods=['POST'])
+def admin_edit_appointments():
+    if session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+    appointment_id = request.form.get('appointment_id')
+    if not appointment_id:
+        flash('Please select an appointment to edit.')
+        return redirect(url_for('admin_appointmennts'))
+    try:
+        appointment_id = int(appointment_id)
+    except ValueError:
+        flash('Invalid appointment selected.')
+        return redirect(url_for('admin_appointmennts'))
+    return redirect(url_for('admin_manage_appointment', appointment_id=appointment_id))
+
+# Show the manage/edit appointment page (admin)
+@app.route('/admin/manage-appointment/<int:appointment_id>', methods=['GET', 'POST'])
+def admin_manage_appointment(appointment_id):
+    if session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+    clinic_id = session.get('clinicID')
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    # Fetch the appointment for this clinic
+    cursor.execute("""
+        SELECT a.apptID, a.appointment_date, a.appointment_time, a.symptoms,
+               a.doctorID AS doctorID, a.patientID,
+               d.firstName AS doctorFirstName, d.lastName AS doctorLastName,
+               p.firstName AS patientFirstName, p.lastName AS patientLastName
+        FROM appointments a
+        JOIN patient p ON a.patientID = p.USERID
+        LEFT JOIN doctor d ON a.doctorID = d.USERID
+        WHERE a.apptID = %s AND a.clinicID = %s
+    """, (appointment_id, clinic_id))
+    appointment = cursor.fetchone()
+
+    if not appointment:
+        cursor.close()
+        conn.close()
+        flash("Appointment not found.", "danger")
+        return redirect(url_for('admin_appointmennts'))
+
+    if request.method == 'POST':
+        # Update date/time/symptoms
+        new_symptoms = request.form.get('symptoms')
+        new_date = request.form.get('appointment_date')
+        new_time = request.form.get('appointment_time')
+
+        # Normalize time format if needed (allow HH:MM)
+        if new_time and len(new_time) == 5:
+            new_time = new_time + ':00'
+
+        # If doctorID exists, check for conflicts excluding this appointment
+        doctor_id = appointment.get('doctorID') if isinstance(appointment, dict) else None
+
+        if doctor_id and new_date and new_time:
+            cursor.execute("SELECT apptID FROM appointments WHERE doctorID = %s AND appointment_date = %s AND appointment_time = %s AND apptID != %s", (doctor_id, new_date, new_time, appointment_id))
+            if cursor.fetchone():
+                cursor.close()
+                conn.close()
+                flash('Selected time slot is not available for this doctor. Please choose another time.')
+                return redirect(url_for('admin_manage_appointment', appointment_id=appointment_id))
+
+        # Perform update
+        try:
+            cursor.execute("""
+                UPDATE appointments SET appointment_date = %s, appointment_time = %s, symptoms = %s
+                WHERE apptID = %s AND clinicID = %s
+            """, (new_date, new_time, new_symptoms, appointment_id, clinic_id))
+            conn.commit()
+            flash('Appointment updated successfully!')
+            cursor.close()
+            conn.close()
+            return redirect(url_for('admin_appointmennts'))
+        except mysql.connector.Error as e:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            flash('Database error: ' + str(e))
+            return redirect(url_for('admin_manage_appointment', appointment_id=appointment_id))
+
+    cursor.close()
+    conn.close()
+
+    # Normalize appointment fields for template
+    appt_for_template = {}
+    if isinstance(appointment, dict):
+        for k, v in appointment.items():
+            if k in ('appointment_date', 'reportDate') and hasattr(v, 'strftime'):
+                try:
+                    appt_for_template[k] = v.strftime('%Y-%m-%d')
+                except Exception:
+                    appt_for_template[k] = str(v)
+            elif k == 'appointment_time':
+                if v is None:
+                    appt_for_template[k] = None
+                else:
+                    if hasattr(v, 'strftime'):
+                        appt_for_template[k] = v.strftime('%H:%M:%S')
+                    elif hasattr(v, 'total_seconds'):
+                        secs = int(v.total_seconds())
+                        hh = secs // 3600
+                        mm = (secs % 3600) // 60
+                        ss = secs % 60
+                        appt_for_template[k] = f"{hh:02d}:{mm:02d}:{ss:02d}"
+                    else:
+                        appt_for_template[k] = str(v)
+            else:
+                appt_for_template[k] = v
+    else:
+        appt_for_template = appointment
+
+    return render_template('clinic_admin/ManageAppointmentAdmin.html', appointment=appt_for_template)
+
+@app.route('/admin/delete-appointment', methods=['POST'])
+def admin_delete_appointment():
+    if session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+    
+    appointment_id = request.form.get('appointment_id')
+    if not appointment_id:
+        flash('Please select an appointment to delete.', 'error')
+        return redirect(url_for('admin_appointmennts'))
+    
+    clinic_id = session.get('clinicID')
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+    
+    # Verify appointment belongs to this clinic before deleting
+    cursor.execute("SELECT apptID FROM appointments WHERE apptID = %s AND clinicID = %s", (appointment_id, clinic_id))
+    appointment = cursor.fetchone()
+    
+    if not appointment:
+        cursor.close()
+        conn.close()
+        flash('Appointment not found or access denied.', 'error')
+        return redirect(url_for('admin_appointmennts'))
+    
+    try:
+        cursor.execute("DELETE FROM appointments WHERE apptID = %s AND clinicID = %s", (appointment_id, clinic_id))
+        conn.commit()
+        flash('Appointment deleted successfully!', 'success')
+    except mysql.connector.Error as e:
+        conn.rollback()
+        flash('Database error: ' + str(e), 'error')
+    finally:
+        cursor.close()
+        conn.close()
+    
+    return redirect(url_for('admin_appointmennts'))
 
 @app.route('/admin_home/manage_accounts')
 def admin_manageaccount():
@@ -1306,11 +1479,75 @@ def admin_managereports():
         return render_template('/clinic_admin/ManageReports.html',username=session.get('username'))
     return redirect(url_for('login'))
 
+@app.route('/admin/book-appointment', methods=['GET', 'POST'])
+def admin_book_appointment():
+    if session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+    
+    clinic_id = session.get('clinicID')
+
+    if request.method == 'POST':
+        # Collect form inputs
+        patient_id = request.form.get('patient_id')
+        doctor_id = request.form.get('doctor_id')
+        appointment_date = request.form.get('appointment_date')
+        appointment_time = request.form.get('appointment_time')
+        symptoms = request.form.get('symptoms')
+
+        if not all([patient_id, doctor_id, appointment_date, appointment_time]):
+            flash('Please fill in all required fields.')
+            return redirect(url_for('admin_book_appointment'))
+
+        # Normalize time (allow HH:MM or HH:MM:SS)
+        if len(appointment_time) == 5:
+            appointment_time = appointment_time + ':00'
+
+        # Check for conflict (same doctor, same date/time)
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        cursor.execute("SELECT apptID FROM appointments WHERE doctorID = %s AND appointment_date = %s AND appointment_time = %s", (doctor_id, appointment_date, appointment_time))
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            flash('Selected time slot is not available for this doctor. Please choose another time.')
+            return redirect(url_for('admin_book_appointment'))
+
+        # Insert appointment
+        try:
+            cursor.execute("INSERT INTO appointments (patientID, appointment_date, appointment_time, doctorID, clinicID, symptoms) VALUES (%s, %s, %s, %s, %s, %s)", (patient_id, appointment_date, appointment_time, doctor_id, clinic_id, symptoms))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            flash('Appointment booked successfully!')
+            return redirect(url_for('admin_appointmennts'))
+        except mysql.connector.Error as e:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            flash('Database error: ' + str(e))
+            return redirect(url_for('admin_book_appointment'))
+
+    # GET: Fetch patients and doctors from this clinic
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Fetch patients for this clinic
+    cursor.execute("SELECT USERID, firstName, lastName FROM patient WHERE clinicID = %s ORDER BY lastName, firstName", (clinic_id,))
+    patients = cursor.fetchall()
+    
+    # Fetch doctors for this clinic
+    cursor.execute("SELECT USERID, firstName, lastName FROM doctor WHERE clinicID = %s ORDER BY lastName, firstName", (clinic_id,))
+    doctors = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+
+    return render_template('clinic_admin/BookAppointmentAdmin.html', patients=patients, doctors=doctors)
+
+# Legacy route redirect
 @app.route('/admin_home/manage_appointments/book_appointment')
 def admin_bookAppoimnent():
-    if session.get('userType') != 'clinicadmin':
-        return render_template('/clinic_admin/BookAppoiment.html',username=session.get('username'))
-    return redirect(url_for('login'))
+    return redirect(url_for('admin_book_appointment'))
 
 
 @app.route('/logout')
