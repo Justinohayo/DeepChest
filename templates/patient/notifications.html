@@ -47,18 +47,12 @@
       <h1>Notifications</h1>
 
       <div class="notifications-section">
-        <p class="notifications-blurb">Sign up to receive appointment reminders and important updates. Choose how you'd like to be notified and provide the contact information below.</p>
+        <p class="notifications-blurb">Sign up to receive appointment reminders and important updates via email. </p>
 
         <form class="notifications-form" method="POST" action="{{ url_for('patient_notifications') }}">
-          <label for="method">Notify via</label>
-          <select id="method" name="method" class="notifications-select">
-            <option value="">-- Choose --</option>
-            <option value="phone">Phone</option>
-            <option value="email">Email</option>
-          </select>
 
-          <label for="contact">Contact</label>
-          <input id="contact" name="contact" class="notifications-input" placeholder="Enter phone number or email" />
+          <label for="email">Email</label>
+          <input id="email" name="email" class="notifications-input" placeholder="Enter email" />
 
           <div style="grid-column: 1 / -1; text-align:center;">
             <button type="submit" class="notifications-btn">Opt In</button>

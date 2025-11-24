@@ -204,7 +204,6 @@ CREATE TABLE `account_update_requests` (
 
 CREATE TABLE `notifications` (
     `patientID` INT,
-    `notification_type` VARCHAR(100),
     `contact_info` VARCHAR(100),
     `notification_status` BOOLEAN NOT NULL,
     FOREIGN KEY (`patientID`) REFERENCES `patient`(`USERID`)

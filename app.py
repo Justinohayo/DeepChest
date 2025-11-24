@@ -630,32 +630,31 @@ def patient_notifications():
     user_id = session.get('user_id')
 
     if request.method == 'POST':
-        method = (request.form.get('method') or '').strip().lower()
-        contact = (request.form.get('contact') or '').strip()
+        email = (request.form.get('email') or '').strip()
 
-        if method not in ('phone', 'email') or not contact:
-            flash('Please select a valid notification method and provide contact details.', 'error')
+        if not email:
+            flash('Please provide an email address.', 'error')
             return render_template('patient/notifications.html', user_id=user_id)
 
         try:
             conn = mysql.connector.connect(**db_config)
             cursor = conn.cursor()
             # Add data into notifications table
+            # columns: patientID, contact_info, notification_status
             cursor.execute(
                 """
-                INSERT INTO notifications (patientID, notification_type, contact_info, notification_status)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO notifications (patientID, contact_info, notification_status)
+                VALUES (%s, %s, %s)
                 ON DUPLICATE KEY UPDATE
-                  notification_type = VALUES(notification_type),
                   contact_info = VALUES(contact_info),
                   notification_status = VALUES(notification_status)
                 """,
-                (user_id, method, contact, 1)
+                (user_id, email, 1)
             )
             conn.commit()
             cursor.close()
             conn.close()
-            flash('You have successfully opted in for notifications.', 'success')
+            flash('You have successfully opted in for email notifications.', 'success')
             return redirect(url_for('patient_notifications'))
         except mysql.connector.Error as e:
             try:
