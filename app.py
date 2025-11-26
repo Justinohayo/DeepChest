@@ -89,6 +89,77 @@ def login():
             return redirect(url_for('login'))
     return render_template('login.html')
 
+#Route for signing up clinics
+@app.route('/clinic_signup', methods=['GET', 'POST'])
+def clinic_signup():
+    if request.method == 'POST':
+        # Get form data
+        username = request.form.get('Username')
+        password = request.form.get('password')
+        email = request.form.get('email')
+        phone = request.form.get('phoneNumber')
+        address = request.form.get('address')
+        city = request.form.get('city')
+        province = request.form.get('province')
+        postal_code = request.form.get('postalCode')
+        
+        # Validate required fields
+        if not all([username, password, email, phone, address, city, province, postal_code]):
+            flash('All fields are required.', 'danger')
+            return render_template('clinic_signup.html')
+        
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        
+        try:
+            # Check if username already exists
+            cursor.execute("SELECT * FROM login WHERE username = %s", (username,))
+            if cursor.fetchone():
+                flash('Username already exists. Please choose a different username.', 'danger')
+                cursor.close()
+                conn.close()
+                return render_template('clinic_signup.html')
+            
+            # Insert into clinic table
+            cursor.execute("""
+                INSERT INTO clinic (address, city, province, postalCode) 
+                VALUES (%s, %s, %s, %s)
+            """, (address, city, province, postal_code))
+            
+            # Get the newly created clinicID
+            clinic_id = cursor.lastrowid
+            
+            # Insert into login table
+            cursor.execute("""
+                INSERT INTO login (username, password, userType, clinicID) 
+                VALUES (%s, %s, 'clinicadmin', %s)
+            """, (username, password, clinic_id))
+            
+            # Get the newly created USERID
+            user_id = cursor.lastrowid
+            
+            # Insert into clinicadmin table
+            cursor.execute("""
+                INSERT INTO clinicadmin (USERID, clinicID) 
+                VALUES (%s, %s)
+            """, (user_id, clinic_id))
+            
+            conn.commit()
+            flash('Clinic registered successfully! You can now log in.', 'success')
+            return redirect(url_for('login'))
+            
+        except mysql.connector.Error as err:
+            conn.rollback()
+            flash(f'Database error: {err}', 'danger')
+            return render_template('clinic_signup.html')
+        
+        finally:
+            cursor.close()
+            conn.close()
+    
+    # GET request - show the form
+    return render_template('clinic_signup.html')
+
 #Route for signing up new users(Incomplete, just a placeholder)
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -1287,8 +1358,8 @@ def admin_home():
         return render_template('clinic_admin/adminhome.html', firstName=session.get('firstName'), lastName=session.get('lastName'))
     return redirect(url_for('login'))
 
-@app.route('/admin_home/appointments')
-def admin_appointmennts():
+@app.route('/admin/appointments')
+def admin_appointments():
     if session.get('userType') != 'clinicadmin':
        return redirect(url_for('login'))
     
@@ -1323,12 +1394,12 @@ def admin_edit_appointments():
     appointment_id = request.form.get('appointment_id')
     if not appointment_id:
         flash('Please select an appointment to edit.')
-        return redirect(url_for('admin_appointmennts'))
+        return redirect(url_for('admin_appointments'))
     try:
         appointment_id = int(appointment_id)
     except ValueError:
         flash('Invalid appointment selected.')
-        return redirect(url_for('admin_appointmennts'))
+        return redirect(url_for('admin_appointments'))
     return redirect(url_for('admin_manage_appointment', appointment_id=appointment_id))
 
 # Show the manage/edit appointment page (admin)
@@ -1356,7 +1427,7 @@ def admin_manage_appointment(appointment_id):
         cursor.close()
         conn.close()
         flash("Appointment not found.", "danger")
-        return redirect(url_for('admin_appointmennts'))
+        return redirect(url_for('admin_appointments'))
 
     if request.method == 'POST':
         # Update date/time/symptoms
@@ -1389,7 +1460,7 @@ def admin_manage_appointment(appointment_id):
             flash('Appointment updated successfully!')
             cursor.close()
             conn.close()
-            return redirect(url_for('admin_appointmennts'))
+            return redirect(url_for('admin_appointments'))
         except mysql.connector.Error as e:
             conn.rollback()
             cursor.close()
@@ -1438,7 +1509,7 @@ def admin_delete_appointment():
     appointment_id = request.form.get('appointment_id')
     if not appointment_id:
         flash('Please select an appointment to delete.', 'error')
-        return redirect(url_for('admin_appointmennts'))
+        return redirect(url_for('admin_appointments'))
     
     clinic_id = session.get('clinicID')
     conn = mysql.connector.connect(**db_config)
@@ -1452,7 +1523,7 @@ def admin_delete_appointment():
         cursor.close()
         conn.close()
         flash('Appointment not found or access denied.', 'error')
-        return redirect(url_for('admin_appointmennts'))
+        return redirect(url_for('admin_appointments'))
     
     try:
         cursor.execute("DELETE FROM appointments WHERE apptID = %s AND clinicID = %s", (appointment_id, clinic_id))
@@ -1465,19 +1536,63 @@ def admin_delete_appointment():
         cursor.close()
         conn.close()
     
-    return redirect(url_for('admin_appointmennts'))
+    return redirect(url_for('admin_appointments'))
 
-@app.route('/admin_home/manage_accounts')
+@app.route('/admin/manage_accounts')
 def admin_manageaccount():
     if session.get('userType') != 'clinicadmin':
          return redirect(url_for('login'))
     return render_template('/clinic_admin/ManageAccount.html',username=session.get('username'))
 
-@app.route('/admin_home/manage_reports')
+
+# Clinic admin: manage the clinic metadata (city/province/postalCode)
+@app.route('/admin/manage_clinic', methods=['GET', 'POST'])
+def clinic_manage_clinic():
+    if session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+
+    clinic_id = session.get('clinicID')
+    if not clinic_id:
+        flash('No clinic associated with your account.', 'warning')
+        return redirect(url_for('admin_home'))
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    if request.method == 'POST':
+        city = (request.form.get('city') or '').strip()
+        province = (request.form.get('province') or '').strip()
+        postal = (request.form.get('postalCode') or '').strip()
+
+        try:
+            cursor.execute("UPDATE clinic SET city=%s, province=%s, postalCode=%s WHERE clinicID = %s", (city, province, postal, clinic_id))
+            conn.commit()
+            flash('Clinic updated successfully.', 'success')
+        except Exception as e:
+            conn.rollback()
+            flash('Failed to update clinic: {}'.format(e), 'danger')
+        finally:
+            cursor.close()
+            conn.close()
+        return redirect(url_for('clinic_manage_clinic'))
+
+    # GET
+    cursor.execute("SELECT * FROM clinic WHERE clinicID = %s", (clinic_id,))
+    clinic = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not clinic:
+        flash('Clinic not found.', 'warning')
+        return redirect(url_for('admin_home'))
+
+    return render_template('clinic_admin/manage_clinic.html', clinic=clinic)
+
+@app.route('/admin/manage_reports')
 def admin_managereports():
     if session.get('userType') != 'clinicadmin':
-        return render_template('/clinic_admin/ManageReports.html',username=session.get('username'))
-    return redirect(url_for('login'))
+       return redirect(url_for('login'))
+    return render_template('/clinic_admin/ManageReports.html')
 
 @app.route('/admin/book-appointment', methods=['GET', 'POST'])
 def admin_book_appointment():
@@ -1519,7 +1634,7 @@ def admin_book_appointment():
             cursor.close()
             conn.close()
             flash('Appointment booked successfully!')
-            return redirect(url_for('admin_appointmennts'))
+            return redirect(url_for('admin_appointments'))
         except mysql.connector.Error as e:
             conn.rollback()
             cursor.close()
@@ -1545,8 +1660,8 @@ def admin_book_appointment():
     return render_template('clinic_admin/BookAppointmentAdmin.html', patients=patients, doctors=doctors)
 
 # Legacy route redirect
-@app.route('/admin_home/manage_appointments/book_appointment')
-def admin_bookAppoimnent():
+@app.route('/admin/manage_appointments/book_appointment')
+def admin_bookAppointment():
     return redirect(url_for('admin_book_appointment'))
 
 
@@ -1837,6 +1952,7 @@ def search():
                        d.firstName AS doctorFirstName, d.lastName AS doctorLastName
                 FROM Reports r
                 JOIN patient p ON r.patientID = p.USERID
+               
                 JOIN doctor d ON r.doctorID = d.USERID
                 WHERE MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
             """, (month_num, year_num))
@@ -1995,6 +2111,211 @@ def admin_reports_search():
     conn.close()
     return render_template('clinic_admin/ManageReports.html', report=report)
 
+
+# Clinic admin: list / search / filter accounts
+@app.route('/admin/ManageAccount', methods=['GET'])
+def clinic_manage_accounts():
+    # require clinic admin
+    if session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+
+    clinic_id = session.get('clinicID') or session.get('clinic_id')
+    query = (request.args.get('query') or '').strip()
+    filt = request.args.get('filter', 'all')
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    accounts = []
+
+    # Prepare search parameter
+    q_param = None
+    if query:
+        q_param = f"%{query}%"
+
+    # Fetch doctors when appropriate
+    if filt in ('all', 'doctors'):
+        sql_doc = "SELECT USERID AS id, 'doctor' AS userType, firstName, lastName, email FROM doctor WHERE 1=1"
+        params_doc = []
+        if clinic_id:
+            sql_doc += " AND clinicID = %s"
+            params_doc.append(clinic_id)
+        if q_param:
+            sql_doc += " AND (firstName LIKE %s OR lastName LIKE %s OR email LIKE %s)"
+            params_doc.extend([q_param, q_param, q_param])
+        sql_doc += " ORDER BY lastName, firstName"
+        cursor.execute(sql_doc, tuple(params_doc))
+        doctors = cursor.fetchall()
+        accounts.extend(doctors)
+
+    # Fetch patients when appropriate
+    if filt in ('all', 'patients'):
+        sql_pat = "SELECT USERID AS id, 'patient' AS userType, firstName, lastName, email FROM patient WHERE 1=1"
+        params_pat = []
+        if clinic_id:
+            sql_pat += " AND clinicID = %s"
+            params_pat.append(clinic_id)
+        if q_param:
+            sql_pat += " AND (firstName LIKE %s OR lastName LIKE %s OR email LIKE %s)"
+            params_pat.extend([q_param, q_param, q_param])
+        sql_pat += " ORDER BY lastName, firstName"
+        cursor.execute(sql_pat, tuple(params_pat))
+        patients = cursor.fetchall()
+        accounts.extend(patients)
+
+    # stable sort: by userType then lastName then firstName
+    try:
+        accounts = sorted(accounts, key=lambda x: (x.get('userType', ''), x.get('lastName', '').lower(), x.get('firstName', '').lower()))
+    except Exception:
+        pass
+
+    cursor.close()
+    conn.close()
+
+    return render_template('clinic_admin/ManageAccount.html', accounts=accounts)
+
+
+# Clinic admin: show/manage a single user (basic read/update)
+@app.route('/admin/manage_user/<int:user_id>', methods=['GET', 'POST'])
+def clinic_manage_user(user_id):
+    if session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    # POST: update appropriate table
+    if request.method == 'POST':
+        # Collect common fields
+        utype = (request.form.get('userType') or '').strip().lower()
+        first = (request.form.get('firstName') or '').strip()
+        last = (request.form.get('lastName') or '').strip()
+        email = (request.form.get('email') or '').strip()
+        password = request.form.get('password') or ''
+
+        try:
+            if utype == 'patient':
+                phone = request.form.get('phoneNumber') or None
+                birthday = request.form.get('birthday') or None
+                address = request.form.get('address') or None
+                city = request.form.get('city') or None
+                province = request.form.get('province') or None
+                postal = request.form.get('postalCode') or None
+                insurance = request.form.get('insurance') or None
+
+                cursor.execute("""
+                    UPDATE patient SET firstName=%s, lastName=%s, dateofbirth=%s, address=%s, city=%s, province=%s, postalCode=%s, phone=%s, email=%s, insurance=%s
+                    WHERE USERID=%s
+                """, (first, last, birthday, address, city, province, postal, phone, email, insurance, user_id))
+
+                # Update login username/password if provided
+                if password:
+                    cursor.execute("UPDATE login SET username=%s, password=%s WHERE USERID=%s", (email, password, user_id))
+                else:
+                    cursor.execute("UPDATE login SET username=%s WHERE USERID=%s", (email, user_id))
+
+            elif utype == 'doctor':
+                phone = request.form.get('phoneNumber') or None
+
+                # Update doctor record 
+                cursor.execute("""
+                    UPDATE doctor SET firstName=%s, lastName=%s, email=%s, phone=%s
+                    WHERE USERID=%s
+                """, (first, last, email, phone, user_id))
+
+                # Keep login username/password in sync if provided
+                if password:
+                    cursor.execute("UPDATE login SET username=%s, password=%s WHERE USERID=%s", (email, password, user_id))
+                else:
+                    cursor.execute("UPDATE login SET username=%s WHERE USERID=%s", (email, user_id))
+
+            else:
+                flash('Unknown user type.', 'warning')
+                cursor.close()
+                conn.close()
+                return redirect(url_for('clinic_manage_accounts'))
+
+            conn.commit()
+            flash('Account updated.', 'success')
+        except Exception as e:
+            conn.rollback()
+            flash('Failed to update account: {}'.format(e), 'danger')
+        cursor.close()
+        conn.close()
+        return redirect(url_for('clinic_manage_accounts'))
+
+    # GET: try doctor then patient - fetch full row so templates can prefill all fields
+    cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id,))
+    account = cursor.fetchone()
+    if account:
+        # normalize keys for template
+        account['id'] = account.get('USERID')
+        account['userType'] = 'doctor'
+    else:
+        cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id,))
+        account = cursor.fetchone()
+        if account:
+            account['id'] = account.get('USERID')
+            account['userType'] = 'patient'
+
+    cursor.close()
+    conn.close()
+
+    if not account:
+        flash('User not found.', 'warning')
+        return redirect(url_for('clinic_manage_accounts'))
+
+    # Render a type-specific manage page for better editing
+    if account.get('userType') == 'doctor':
+        return render_template('clinic_admin/manage_doctor.html', account=account)
+    else:
+        return render_template('clinic_admin/manage_patient.html', account=account)
+
+
+# Clinic admin: delete user
+@app.route('/admin/delete_user', methods=['POST'])
+def clinic_delete_user():
+    if session.get('userType') != 'clinic_admin':
+        return redirect(url_for('login'))
+    user_id = request.form.get('user_id')
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        flash('Invalid user id.', 'warning')
+        return redirect(url_for('clinic_manage_accounts'))
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+    try:
+        # check doctor table
+        cursor.execute("SELECT USERID FROM doctor WHERE USERID = %s", (user_id,))
+        if cursor.fetchone():
+            cursor.execute("DELETE FROM doctor WHERE USERID = %s", (user_id,))
+        else:
+            cursor.execute("SELECT USERID FROM patient WHERE USERID = %s", (user_id,))
+            if cursor.fetchone():
+                cursor.execute("DELETE FROM patient WHERE USERID = %s", (user_id,))
+            else:
+                flash('Account not found.', 'warning')
+                cursor.close()
+                conn.close()
+                return redirect(url_for('clinic_manage_accounts'))
+
+        # Also remove login entry if exists
+        try:
+            cursor.execute("DELETE FROM login WHERE USERID = %s", (user_id,))
+        except Exception:
+            pass
+
+        conn.commit()
+        flash('Account deleted.', 'success')
+    except Exception as e:
+        conn.rollback()
+        flash('Failed to delete account: {}'.format(e), 'danger')
+    finally:
+        cursor.close()
+        conn.close()
+
+    return redirect(url_for('clinic_manage_accounts'))
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -2,7 +2,8 @@
         Creates a Table for clinic that includes clinicID, city, province, and postalCode
         */
 CREATE TABLE `clinic` (
- `clinicID` varchar(15) NOT NULL UNIQUE,
+ `clinicID` int(255) AUTO_INCREMENT NOT NUll UNIQUE,
+ `address` varchar(15) NOT NULL,
   `city` varchar(15) NOT NULL,
    `province` varchar(15) NOT NULL,
     `postalCode` varchar(15) NOT NULL,
@@ -10,9 +11,9 @@ CREATE TABLE `clinic` (
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data into the clinic table
-INSERT INTO `clinic` (`clinicID`,`city`,`province`,`postalCode`) VALUES
-('clinic1','Surrey','BC','V3N0L3'),
-('clinic2','Vancouver','BC','V5K0A1');
+INSERT INTO `clinic` (`clinicID`,`address`,`city`,`province`,`postalCode`) VALUES
+('1000','12345 82 Ave','Surrey','BC','V3N0L3'),
+('2000','1354 162 ST','Vancouver','BC','V5K0A1');
 /*
         Creates a Table for login that includes USERID, username, password, userType, and clinicID
         */
@@ -21,17 +22,17 @@ CREATE TABLE `login` (
   `username` varchar(50) NOT NULL,
   `password` varchar(15) NOT NULL,
   `userType` varchar(15) NOT NULL,
-  `clinicID` varchar(15) NOT NULL,
+  `clinicID` int(255) NOT NULL,
     PRIMARY KEY(USERID),
     FOREIGN KEY (clinicID) REFERENCES clinic(clinicID)
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds rows of data to the login table for each user type
 INSERT INTO `login` ( `USERID`,`username`, `password`, `userType`, `clinicID`) VALUES
-('111','treddy','1234', 'patient','clinic1'),
-('112','example','1234', 'patient','clinic1'),
-('222','doc1','1234', 'doctor','clinic1'),
-('333','admin1','1234', 'clinicadmin','clinic1');
+('111','treddy','1234', 'patient','1000'),
+('112','example','1234', 'patient','1000'),
+('222','doc1','1234', 'doctor','1000'),
+('333','admin1','1234', 'clinicadmin','1000');
 
 /*
         Creates a Table for doctors that includes firstName, lastName, email, phone, USERID, and clinicID
@@ -42,14 +43,14 @@ CREATE TABLE `doctor` (
   `email` varchar(50) NOT NULL,
   `phone` varchar(15) ,
   `USERID` int(255) NOT NULL,
-   `clinicID` varchar(15) NOT NULL,
+   `clinicID` int(255) NOT NULL,
    PRIMARY KEY (USERID),
     FOREIGN KEY (USERID) REFERENCES login(USERID)
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the doctor table
 INSERT INTO `doctor` (`firstName`, `lastName`, `email`, `phone`, `USERID`,`clinicID`) VALUES
-('John', 'Doe', 'JohnD@gmail.com',7783123199, '222','clinic1');
+('John', 'Doe', 'JohnD@gmail.com',7783123199, '222','1000');
 /*
         Creates a Table for patients that includes firstName, lastName, age, dateofbirth, USERID, address, city, province, postalCode, phone, email, insurance, doctorID, childID and clinicID
         */
@@ -68,7 +69,7 @@ CREATE TABLE `patient`(
     `insurance` varchar(20),
     `doctorID`int(255),
     `childID`varchar(15) DEFAULT NULL,
-     `clinicID` varchar(15) NOT NULL,
+     `clinicID` int(255) NOT NULL,
     PRIMARY KEY (USERID),
     FOREIGN KEY (USERID) REFERENCES login(USERID),
     FOREIGN KEY (doctorID) REFERENCES doctor(USERID),
@@ -77,8 +78,8 @@ CREATE TABLE `patient`(
 
  -- adds data to the patient table
 INSERT INTO `patient` (`firstName`, `lastName`, `age`,`dateofbirth`, `USERID`, `address`, `city`, `province`, `postalCode`, `phone`, `email`,`insurance`,`doctorID`,`childID`,`clinicID`) VALUES
-('Theisen', 'Reddy', '23','2001-08-25', '111', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'treddy@example.com','Blue Cross','222','','clinic1'),
-('Example', 'Person', '23','2001-08-25', '112', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'example@example.com','Blue Cross','222','','clinic1');
+('Theisen', 'Reddy', '23','2001-08-25', '111', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'treddy@example.com','Blue Cross','222','','1000'),
+('Example', 'Person', '23','2001-08-25', '112', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'example@example.com','Blue Cross','222','','1000');
 
 /*
         Creates a Table for appointments that includes apptID, patientID, appointment_date, appointment_time, doctorID, and symptoms
@@ -89,7 +90,7 @@ CREATE TABLE `appointments` (
 `appointment_date` date NOT NULL,
 `appointment_time` time NOT NULL,
 `doctorID` int(255),
-`clinicID` varchar(255),
+`clinicID` int(255),
 `symptoms` varchar(20),
 PRIMARY KEY (apptID),
   FOREIGN KEY (patientID) REFERENCES patient(USERID),
@@ -98,8 +99,8 @@ PRIMARY KEY (apptID),
 
  -- adds data to the appointments table
 INSERT INTO `appointments` (`apptID`,`patientID`, `appointment_date`, `appointment_time`, `doctorID`,`clinicID`,`symptoms`) VALUES
-(1,111,  '2024-03-11', '14:39:00','222','clinic1','flu like'),
-(2,112,  '2024-03-12', '10:00:00','222','clinic1','coughing');
+(1,111,  '2024-03-11', '14:39:00','222','1000','flu like'),
+(2,112,  '2024-03-12', '10:00:00','222','1000','coughing');
 
 /*
         Creates a Table for reports that includes reportID, patientID, doctorID, and files
@@ -126,14 +127,14 @@ INSERT INTO `Reports` (`patientID`, `doctorID`, `reportDate`, `files`) VALUES
         */
 CREATE TABLE `clinicadmin` (
   `USERID` int(255) NOT NULL,
- `clinicID` varchar(15) NOT NULL,
+ `clinicID` int(255) NOT NULL,
     FOREIGN KEY (USERID) REFERENCES login(USERID),
      FOREIGN KEY (clinicID) REFERENCES clinic(clinicID)
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the clinicadmin table
 INSERT INTO `clinicadmin` (`USERID`,`clinicID`) VALUES
-('333','clinic1');
+('333','1000');
 
 /*
         Creates a Table for child links that includes linkID, childID, and parentID

@@ -17,10 +17,16 @@
       </div>
       <div class="nav-links">
         <a href="/admin_home">Home</a>
-        <a href="/admin_home/appointments">Appointments</a>
-        <a href="/clinic_admin/ManageAccount">Manage Account</a>
-        <a href="/clinic_admin/ManageReports">Manage Report</a>
-        <a href="/logout">Logout</a>
+        <a href="/admin/appointments">Appointments</a>
+        <a href="/admin/ManageAccount">Manage Accounts</a>
+        <a href="/admin/manage_reports">Manage Reports</a>
+        <div class="dropdown">
+          <button class="dropbtn">Account &#9662;</button>
+          <div class="dropdown-content">
+            <a href="/admin/manage_clinic">Manage Clinic</a>
+            <a href="/logout">Logout</a>
+          </div>
+        </div>
       </div>
     </nav>
     <div class="admin-content">
@@ -62,7 +68,7 @@
 
             <div class="form-row form-actions">
               <button type="submit" id="save-appt-btn" class="book-btn">Save Changes</button>
-              <a href="{{ url_for('admin_appointmennts') }}" class="book-btn" style="background:#aaa; margin-left:8px; text-decoration:none; display:inline-block; padding:10px 14px;">Cancel</a>
+              <a href="{{ url_for('admin_appointments') }}" class="book-btn" style="background:#aaa; margin-left:8px; text-decoration:none; display:inline-block; padding:10px 14px;">Cancel</a>
             </div>
           </form>
         </div>

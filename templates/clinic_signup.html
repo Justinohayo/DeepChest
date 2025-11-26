@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Browesr tab bar Title -->
+    <title>Clinic Sign Up - DeepChest</title>
+    <!-- Linking Stylesheet -->
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    {% extends "navigationbase.html" %}
+    <!-- Main body content -->
+    {% block title %}DeepChest - Home{% endblock %}
+
+    {% block content %}
+    <!-- Main body content: form for signing up -->
+    <div class="signup-content">
+      <h1>Clinic Sign Up</h1>
+      <form method="POST" action="/clinic_signup" class="signup-form">
+        <input type="text" name="Username" placeholder="Username" required />
+        <input type="password" name="password" placeholder="Password" required />
+        <input type="email" name="email" placeholder="Email" required />
+        <input
+          type="text"
+          name="phoneNumber"
+          placeholder="Phone Number"
+          required
+        />
+        <input type="text" name="address" placeholder="Address" required />
+        <input type="text" name="city" placeholder="City" required />
+        <input type="text" name="province" placeholder="Province" required />
+        <input
+          type="text"
+          name="postalCode"
+          placeholder="Postal Code"
+          required
+        />
+        <!-- Submit button -->
+        <button type="submit" class="signup-btn">Sign Up</button>
+      </form>
+    </div>
+    {% endblock %}
+  </body>
+</html>

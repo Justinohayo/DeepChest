@@ -297,3 +297,219 @@
   border: 1px solid #b8f0c8;
 }
 
+/* ManageAccount page styles */
+.center-content {
+  max-width: 1100px;
+  margin: 36px auto;
+  padding: 18px 16px;
+  text-align: center; /* center children */
+}
+
+.manage-header {
+  display: block;
+  margin-bottom: 20px;
+}
+
+.manage-header h1 {
+  margin: 0 0 6px 0;
+}
+
+.manage-header p {
+  margin: 0 0 16px 0;
+  color: #444;
+}
+
+.search-filter {
+  display: flex;
+  gap: 16px;
+  justify-content: center; /* center the form */
+  align-items: center;
+  margin-bottom: 20px; /* space below search/filter */
+}
+
+.report-search-bar {
+  height: 40px;
+  font-size: 14px;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  width: 420px;
+}
+
+.filter-select {
+  height: 40px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.report-search-btn {
+  height: 40px;
+  padding: 8px 14px;
+  background: #222;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* make search controls visually same height and aligned */
+.search-filter input.report-search-bar,
+.search-filter select.filter-select,
+.search-filter button.report-search-btn {
+  box-sizing: border-box;
+  height: 40px;
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+/* ensure select and button match the input's visual weight */
+.filter-select {
+  min-width: 160px;
+}
+.report-search-btn {
+  min-width: 120px;
+}
+
+.manage-table-container {
+  margin: 0 auto;
+  max-width: 1900px; /* allow table to grow wider inside admin container */
+  overflow-x: auto;
+  margin-top: 20px; /* add space between search bar and list */
+}
+
+.search-table {
+  width: 100%;
+  max-width: 1900px; /* match container */
+  margin: 0 auto;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.search-table th, .search-table td {
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.search-table th {
+  background: #222;
+  color: #fff;
+  font-weight: 600;
+}
+
+.search-table tr:nth-child(even) { background: #f7f7f7; }
+
+.manage-btn, .delete-btn {
+  display: inline-block;
+  padding: 8px 12px;
+  margin-left: 8px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+}
+.manage-btn { background:#222; color:#fff; }
+.delete-btn { background:#d9534f; color:#fff; }
+.manage-btn:hover, .delete-btn:hover { opacity: 0.95; }
+
+.inline-form { display:inline-block; margin:0; }
+
+/* smaller devices tweaks */
+@media (max-width: 700px) {
+  .report-search-bar { width: 200px; }
+  .search-table { width: 100%; }
+  .search-filter { flex-direction: column; gap: 8px; }
+}
+
+/* Manage account / modify account form styles (match patient/doctor pages) */
+.modify-account-flex {
+  display: flex;
+  gap: 24px;
+  margin-top: 20px;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.modify-account-form {
+  background: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+  min-width: 320px;
+  max-width: 720px;
+}
+
+.modify-account-form-style {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modify-account-form-style input[type="text"],
+.modify-account-form-style input[type="email"],
+.modify-account-form-style input[type="password"],
+.modify-account-form-style input[type="date"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
+.save-btn {
+  background: #222;
+  color: #fff;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-top: 8px;
+}
+.save-btn:hover { opacity: 0.95; }
+
+.back-btn-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  min-width: 220px;
+}
+
+.back-btn, .manage-actions a {
+  display: inline-block;
+  padding: 10px 16px;
+  background: #666;
+  color: #fff;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+.info-note {
+  background: #e8f4fd;
+  border: 1px solid #b6e0fe;
+  color: #084b83;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  margin-bottom: 12px;
+}
+
+/* Alerts used in the templates */
+.flash-messages { margin: 12px 0; }
+.alert { padding: 10px 14px; border-radius: 8px; margin-bottom: 10px; font-weight: 600; max-width: 100%; }
+.alert.success { background: #e6ffed; color: #0b6a2b; border: 1px solid #b8f0c8; }
+.alert.info { background: #eef6ff; color: #054a91; border: 1px solid #bcdffb; }
+.alert.error, .alert.danger { background: #ffe6e6; color: #7a0b0b; border: 1px solid #ffb3b3; }
+.alert.warning { background: #fff8e6; color: #7a5a00; border: 1px solid #ffe8a8; }
+
+@media (max-width: 700px) {
+  .modify-account-flex { flex-direction: column; align-items: stretch; }
+  .register-child-btn-container { width: 100%; }
+}
+

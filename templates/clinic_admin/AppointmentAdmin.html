@@ -17,10 +17,16 @@
       </div>
       <div class="nav-links">
         <a href="/admin_home">Home</a>
-        <a href="#">Appointments</a>
-        <a href="/clinic_admin/ManageAccount">Manage Account</a>
-        <a href="/clinic_admin/ManageReports">Manage Report</a>
-        <a href="/logout">Logout</a>
+        <a href="/admin/appointments">Appointments</a>
+        <a href="/admin/ManageAccount">Manage Accounts</a>
+       <a href="/admin/manage_reports">Manage Reports</a>
+       <div class="dropdown">
+          <button class="dropbtn">Account &#9662;</button>
+          <div class="dropdown-content">
+            <a href="/admin/manage_clinic">Manage Clinic</a>
+            <a href="/logout">Logout</a>
+          </div>
+        </div>
       </div>
     </nav>
     {# Show Flask flash messages #}
