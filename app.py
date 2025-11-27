@@ -9,7 +9,7 @@ import tensorflow as tf
 import cv2
 import numpy as np
 from tensorflow import keras
-from tensorflow.keras.utils import load_img, img_to_array
+from keras.utils import load_img, img_to_array
 import matplotlib as plt
 
 
@@ -1693,8 +1693,37 @@ def clinic_manage_clinic():
 @app.route('/admin/manage_reports')
 def admin_managereports():
     if session.get('userType') != 'clinicadmin':
-       return redirect(url_for('login'))
-    return render_template('/clinic_admin/ManageReports.html')
+        return redirect(url_for('login'))
+    
+    clinic_id = session.get('clinicID')
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Fetch all reports for the clinic
+    cursor.execute("""
+        SELECT r.reportID, r.reportDate, r.files,
+               p.firstName AS patientFirstName, p.lastName AS patientLastName,
+               d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+        FROM Reports r
+        JOIN patient p ON r.patientID = p.USERID
+        JOIN doctor d ON r.doctorID = d.USERID
+        WHERE p.clinicID = %s
+        ORDER BY r.reportDate DESC
+    """, (clinic_id,))
+    
+    reports = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    # Convert reportDate to datetime if it's a string
+    for r in reports:
+        if isinstance(r['reportDate'], str):
+            try:
+                r['reportDate'] = datetime.strptime(r['reportDate'], '%Y-%m-%d')
+            except Exception:
+                pass
+    
+    return render_template('/clinic_admin/ManageReports.html', reports=reports)
 
 @app.route('/admin/book-appointment', methods=['GET', 'POST'])
 def admin_book_appointment():
@@ -2207,11 +2236,152 @@ def admin_reports_search():
         return redirect(url_for('login'))
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM Reports WHERE reportID = %s", (reportID,))
+    cursor.execute("""
+        SELECT r.*, 
+               p.firstName AS patientFirstName, p.lastName AS patientLastName,
+               d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+        FROM Reports r
+        JOIN patient p ON r.patientID = p.USERID
+        JOIN doctor d ON r.doctorID = d.USERID
+        WHERE r.reportID = %s
+    """, (reportID,))
     report = cursor.fetchone()
     cursor.close()
     conn.close()
-    return render_template('clinic_admin/ManageReports.html', report=report)
+    if not report:
+        flash("Report not found.", "danger")
+        return redirect(url_for('admin_managereports'))
+    return render_template('clinic_admin/reportdetails.html', report=report)
+
+# Admin delete report route
+@app.route('/admin/delete_report', methods=['POST'])
+def admin_delete_report():
+    if session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+    
+    report_id = request.form.get('reportID')
+    if not report_id:
+        flash("Invalid report ID.", "danger")
+        return redirect(url_for('admin_managereports'))
+    
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Verify the report belongs to this clinic
+    clinic_id = session.get('clinicID')
+    cursor.execute("""
+        SELECT r.reportID 
+        FROM Reports r
+        JOIN patient p ON r.patientID = p.USERID
+        WHERE r.reportID = %s AND p.clinicID = %s
+    """, (report_id, clinic_id))
+    
+    report = cursor.fetchone()
+    if not report:
+        flash("Report not found or access denied.", "danger")
+        cursor.close()
+        conn.close()
+        return redirect(url_for('admin_managereports'))
+    
+    # Delete the report
+    cursor.execute("DELETE FROM Reports WHERE reportID = %s", (report_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    flash("Report deleted successfully.", "success")
+    return redirect(url_for('admin_managereports'))
+
+# Admin search reports route
+@app.route('/admin/search_reports', methods=['GET'])
+def admin_search_reports():
+    if session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+    
+    clinic_id = session.get('clinicID')
+    query = request.args.get('query', '').strip()
+    
+    # Month name support
+    month_map = {month.lower(): index for index, month in enumerate(calendar.month_name) if month}
+    query_lower = query.lower()
+    month_num = None
+    year_num = None
+    
+    # Check if query contains a month name
+    for name, num in month_map.items():
+        if name in query_lower:
+            month_num = num
+            # Check for year with month (e.g., "April 2025" or "2025 April")
+            match = re.search(rf"{name}\s+(\d{{4}})", query_lower)
+            if match:
+                year_num = int(match.group(1))
+            else:
+                match = re.search(rf"(\d{{4}})\s+{name}", query_lower)
+                if match:
+                    year_num = int(match.group(1))
+            break
+    
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Search based on whether we found a month
+    if month_num and year_num:
+        # Search by month and year
+        cursor.execute("""
+            SELECT r.reportID, r.reportDate, r.files,
+                   p.firstName AS patientFirstName, p.lastName AS patientLastName,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN patient p ON r.patientID = p.USERID
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE p.clinicID = %s AND MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
+            ORDER BY r.reportDate DESC
+        """, (clinic_id, month_num, year_num))
+    elif month_num:
+        # Search by month only
+        cursor.execute("""
+            SELECT r.reportID, r.reportDate, r.files,
+                   p.firstName AS patientFirstName, p.lastName AS patientLastName,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN patient p ON r.patientID = p.USERID
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE p.clinicID = %s AND MONTH(r.reportDate) = %s
+            ORDER BY r.reportDate DESC
+        """, (clinic_id, month_num))
+    else:
+        # Regular text search in report ID, date, patient name, or doctor name
+        cursor.execute("""
+            SELECT r.reportID, r.reportDate, r.files,
+                   p.firstName AS patientFirstName, p.lastName AS patientLastName,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN patient p ON r.patientID = p.USERID
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE p.clinicID = %s AND (
+                CAST(r.reportID AS CHAR) LIKE %s
+                OR r.reportDate LIKE %s
+                OR p.firstName LIKE %s
+                OR p.lastName LIKE %s
+                OR d.firstName LIKE %s
+                OR d.lastName LIKE %s
+            )
+            ORDER BY r.reportDate DESC
+        """, (clinic_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+    
+    reports = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    # Convert reportDate to datetime if it's a string
+    for r in reports:
+        if isinstance(r['reportDate'], str):
+            try:
+                r['reportDate'] = datetime.strptime(r['reportDate'], '%Y-%m-%d')
+            except Exception:
+                pass
+    
+    return render_template('/clinic_admin/ManageReports.html', reports=reports)
 
 
 # Clinic admin: list / search / filter accounts
