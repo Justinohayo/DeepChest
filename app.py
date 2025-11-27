@@ -8,6 +8,8 @@ import json
 import tensorflow as tf 
 import cv2
 import numpy as np
+from tensorflow import keras
+from tensorflow.keras.utils import load_img, img_to_array
 import matplotlib as plt
 
 
@@ -1189,7 +1191,108 @@ def doctor_search_reports():
         reports=reports
     )
 
+#AI Grad-CAM logic
+model_path = "model_1.keras"
+model = tf.keras.models.load_model(model_path)
+class_names = ["COVID19","NORMAL","PNEUMONIA","TUBERCOLOSIS"]
 
+
+# New symbolic input
+input_tensor = keras.Input(shape=(224, 224, 3))
+
+# tracking last_conv output
+x = input_tensor
+last_conv_output = None
+
+for layer in model.layers:
+    x = layer(x)
+    if layer.name == "last_conv":
+        last_conv_output = x
+
+predictions = x  # this is the output of the last Dense layer
+
+def preprocess_input(file_storage):
+    img = load_img(file_storage, target_size=(224,224))
+    img_array = tf.keras.utils.img_to_array(img)
+    img_array = img_array / 255.0
+    img_array = np.expand_dims(img_array, axis=0) #it will put the img (1,224,244,3) = (1, heights,width,channels), the number one means the number of batch
+    return img_array
+
+
+def make_gradcam_heatmap(img_array, model, last_conv_layer_name, pred_index=None):
+    grad_model = keras.Model(
+    inputs=input_tensor, outputs = [last_conv_output, predictions] #give out a grad and prediction probs
+)
+    with tf.GradientTape() as tape:
+        last_conv_layer_output, preds = grad_model(img_array)
+        if pred_index is None:
+            pred_index = tf.argmax(preds[0])
+        class_channel = preds[:, pred_index]
+
+    # This is the gradient of the output neuron (top predicted or chosen)
+    grads = tape.gradient(class_channel, last_conv_layer_output)[0]
+
+    # This is a vector where each entry is the mean intensity of the gradient
+    # over a specific feature map channel
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1))
+
+    # We multiply each channel in the feature map array
+    last_conv_layer_output = last_conv_layer_output[0]
+    heatmap = last_conv_layer_output @ pooled_grads[..., tf.newaxis]
+    heatmap = tf.squeeze(heatmap)
+
+   #normalize the heatmap 0-1
+    heatmap = tf.maximum(heatmap, 0) / tf.math.reduce_max(heatmap)
+    return heatmap.numpy(), preds.numpy()[0]
+
+def display_gradcam(img_path, model, last_conv_layer_name="last_conv"):
+    #img array
+    img_array = preprocess_input(img_path, size=(224,224))
+    
+    # Load the original image
+    img = keras.utils.load_img(img_path, target_size=(224,224))
+    img = keras.utils.img_to_array(img).astype("uint8")
+
+    # Rescale heatmap to a range 0-255
+    heatmap, preds = make_gradcam_heatmap(img_array, model, last_conv_layer_name)
+
+  # Predicted class + probability
+    pred_idx = int(np.argmax(preds))
+    pred_name = class_names.get(pred_idx, "Unknown")
+    pred_prob = float(preds[pred_idx]) * 100
+
+    # colormap
+    heatmap_resized = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
+    heatmap_color = cv2.applyColorMap(
+        np.uint8(255 * heatmap_resized),
+        cv2.COLORMAP_JET
+    )
+    overlay = cv2.addWeighted(img, 0.6, heatmap_color, 0.4, 0)
+    #show
+    plt.figure(figsize=(6, 6))
+    plt.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
+    plt.axis("off")
+    plt.title(f"{pred_name} ({pred_prob:.1f}%)")
+    plt.show()
+
+def predict(file):
+    img = load_img(file, target_size=(224,224))
+    img_array = preprocess_input(file)
+
+    heatmap, preds = make_gradcam_heatmap(img_array)
+
+    #interpreting the predictions
+    predicted_idx = int(np.argmax(preds))
+    predicted_label = class_names[predicted_idx]
+    predicted_prob = float(preds[predicted_idx]*100)
+
+    #Probs for website 
+    probs = list(zip(class_names, preds))
+
+    #Grad-CAM
+    grad_cam = display_gradcam(file, model, last_conv_layer_name="last_conv")
+
+    return grad_cam, predicted_label, predicted_prob, probs
 
 # Doctor AI Diagnosis Page
 @app.route('/doctor/ai_diagnosis', methods=['GET', 'POST'])
@@ -1209,8 +1312,7 @@ def doctor_ai_diagnosis():
             flash('No selected file.')
             return redirect(request.url)
 
-        # Simulated result
-        prediction = "AI Analysis: Possible Pneumonia Detected"
+    prediction = predict(file)
 
     return render_template(
         'doctor/doctor_ai_diagnosis.html',
