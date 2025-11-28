@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from time import time
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 import mysql.connector
 import webbrowser
 import calendar
@@ -11,6 +12,7 @@ import numpy as np
 from tensorflow import keras
 from keras.utils import load_img, img_to_array
 import matplotlib as plt
+from mysql.connector.errors import DatabaseError
 
 
 app = Flask(__name__)
@@ -1451,7 +1453,121 @@ def doctor_account():
     return render_template('doctor/doctor_modifyaccount.html', doctor=doctor)
 
 
+#saves notification to the database
+def save_notification(patient_id, message):
+    """Save a notification for the patient only."""
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
 
+    query = """
+    INSERT INTO notifications (patientID, contact_info, notification_status)
+    VALUES (%s, %s, %s)
+    """
+    # contact_info is patient email
+    cursor.execute("SELECT email FROM patient WHERE USERID = %s", (patient_id,))
+    patient_email = cursor.fetchone()
+    if patient_email:
+        cursor.execute(query, (patient_id, patient_email[0], False))
+        conn.commit()
+
+    cursor.close()
+    conn.close()
+
+
+#get patient and doctor emails
+def get_emails(patient_id, doctor_id):
+    with mysql.connector.connect(**db_config) as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT email FROM patient WHERE USERID = %s", (patient_id,))
+            patient_email = cursor.fetchone()
+            cursor.execute("SELECT email FROM doctor WHERE USERID = %s", (doctor_id,))
+            doctor_email = cursor.fetchone()
+    return (
+        patient_email[0] if patient_email else None,
+        doctor_email[0] if doctor_email else None
+    )
+
+# Add Report Route (doctor adds a new report)
+@app.route('/add-report', methods=['POST'])
+def add_report():
+    data = request.json
+
+    patient_id = data.get('patient_id')
+    doctor_id = data.get('doctor_id')
+
+    if not patient_id or not doctor_id:
+        return jsonify({"error": "patient_id and doctor_id are required"}), 400
+
+    report_date = data.get('report_date', str(date.today()))
+    files = data.get('files', None)
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+
+    query = """
+    INSERT INTO Reports (patientID, doctorID, reportDate, files)
+    VALUES (%s, %s, %s, %s)
+    """
+    cursor.execute(query, (patient_id, doctor_id, report_date, files))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    # Notify patient only
+    message = f"A new report was added for patient ID {patient_id} on {report_date}."
+    save_notification(patient_id, message)
+
+    return jsonify({
+        "status": "success",
+        "message": "Report added and patient notified",
+    })
+
+# Update Report Route (doctor updates an existing report)
+@app.route('/update-report/<int:report_id>', methods=['PUT'])
+def update_report(report_id):
+    data = request.json
+    new_file = data.get('files', None)
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+
+    # Update report
+    update_query = "UPDATE Reports SET files = %s WHERE reportID = %s"
+    cursor.execute(update_query, (new_file, report_id))
+    conn.commit()
+
+    # Get patient info
+    cursor.execute("SELECT patientID FROM Reports WHERE reportID = %s", (report_id,))
+    result = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not result:
+        return jsonify({"error": "Report not found"}), 404
+
+    patient_id = result[0]
+
+    # Notify patient only
+    message = f"Report ID {report_id} was updated on {date.today()}."
+    save_notification(patient_id, message)
+
+    return jsonify({
+        "status": "success",
+        "message": "Report updated and patient notified",
+    })
+
+# Notification placeholder, actually sending emails will be implemented with SES
+def notify_users(report_id, patient_id, doctor_id, action):
+    """
+    Placeholder for SES.
+    """
+    print("=================================")
+    print(" NOTIFICATION TRIGGERED ")
+    print(f"Action: {action}")
+    print(f"Report ID: {report_id}")
+    print(f"Patient ID: {patient_id}")
+    print(f"Doctor ID: {doctor_id}")
+    print("=================================")
 
 # Clinic Admin Home Page
 @app.route('/admin_home')
