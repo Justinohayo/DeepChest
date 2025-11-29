@@ -110,6 +110,7 @@ CREATE TABLE `Reports` (
   `patientID` int(255) NOT NULL,
   `doctorID` int(255),
   `reportDate` date NOT NULL,
+  `expiryDate` date NOT NULL,
   `files` varbinary(255),
   PRIMARY KEY (reportID),
    FOREIGN KEY (patientID) REFERENCES patient(USERID),
@@ -117,10 +118,10 @@ CREATE TABLE `Reports` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the reports table
-INSERT INTO `Reports` (`patientID`, `doctorID`, `reportDate`, `files`) VALUES
-(111, 222, '2024-04-11', 'report1.pdf'),
-(112, 222, '2024-04-12', 'report2.pdf'),
-(111, 222, '2024-08-14', 'report3.pdf');
+INSERT INTO `Reports` (`patientID`, `doctorID`, `reportDate`,`expiryDate`, `files`) VALUES
+(111, 222, '2025-11-11','2025-12-11' ,'report1.pdf'),
+(112, 222, '2025-11-12','2025-12-11' ,'report2.pdf'),
+(111, 222, '2025-11-14','2025-12-11', 'report3.pdf');
 
 /*
         Creates a Table for clinic admins that includes USERID and clinicID

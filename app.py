@@ -1811,35 +1811,56 @@ def admin_managereports():
     if session.get('userType') != 'clinicadmin':
         return redirect(url_for('login'))
     
+    # Automatically delete expired reports
+    expired_count = delete_expired_reports()
+    if expired_count > 0:
+        flash(f"Automatically removed {expired_count} expired report(s).", "info")
+    
     clinic_id = session.get('clinicID')
+    filter_by = request.args.get('filter', 'newest')  # Default to newest
+    
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor(dictionary=True)
     
+    # Determine ORDER BY clause based on filter
+    if filter_by == 'oldest':
+        order_clause = "ORDER BY r.reportDate ASC"
+    elif filter_by == 'expiry':
+        order_clause = "ORDER BY r.expiryDate ASC"
+    else:  # newest (default)
+        order_clause = "ORDER BY r.reportDate DESC"
+    
     # Fetch all reports for the clinic
-    cursor.execute("""
-        SELECT r.reportID, r.reportDate, r.files,
+    query = f"""
+        SELECT r.reportID, r.reportDate, r.expiryDate, r.files,
                p.firstName AS patientFirstName, p.lastName AS patientLastName,
                d.firstName AS doctorFirstName, d.lastName AS doctorLastName
         FROM Reports r
         JOIN patient p ON r.patientID = p.USERID
         JOIN doctor d ON r.doctorID = d.USERID
         WHERE p.clinicID = %s
-        ORDER BY r.reportDate DESC
-    """, (clinic_id,))
+        {order_clause}
+    """
+    cursor.execute(query, (clinic_id,))
     
     reports = cursor.fetchall()
     cursor.close()
     conn.close()
     
-    # Convert reportDate to datetime if it's a string
+    # Convert dates to datetime if they're strings
     for r in reports:
         if isinstance(r['reportDate'], str):
             try:
                 r['reportDate'] = datetime.strptime(r['reportDate'], '%Y-%m-%d')
             except Exception:
                 pass
+        if isinstance(r.get('expiryDate'), str):
+            try:
+                r['expiryDate'] = datetime.strptime(r['expiryDate'], '%Y-%m-%d')
+            except Exception:
+                pass
     
-    return render_template('/clinic_admin/ManageReports.html', reports=reports)
+    return render_template('/clinic_admin/ManageReports.html', reports=reports, filter_by=filter_by)
 
 @app.route('/admin/book-appointment', methods=['GET', 'POST'])
 def admin_book_appointment():
@@ -2369,6 +2390,47 @@ def admin_reports_search():
         return redirect(url_for('admin_managereports'))
     return render_template('clinic_admin/reportdetails.html', report=report)
 
+# Helper function to check and delete expired reports
+def delete_expired_reports():
+    """Delete all reports where expiryDate is before today's date."""
+    today = date.today()
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Find expired reports
+    cursor.execute("""
+        SELECT reportID, expiryDate FROM Reports
+        WHERE expiryDate < %s
+    """, (today,))
+    
+    expired_reports = cursor.fetchall()
+    count = len(expired_reports)
+    
+    if count > 0:
+        # Delete expired reports
+        cursor.execute("DELETE FROM Reports WHERE expiryDate < %s", (today,))
+        conn.commit()
+    
+    cursor.close()
+    conn.close()
+    
+    return count
+
+# Admin route to manually trigger expired reports cleanup
+@app.route('/admin/cleanup_expired_reports', methods=['POST'])
+def admin_cleanup_expired_reports():
+    if session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+    
+    count = delete_expired_reports()
+    
+    if count > 0:
+        flash(f"Successfully deleted {count} expired report(s).", "success")
+    else:
+        flash("No expired reports found.", "info")
+    
+    return redirect(url_for('admin_managereports'))
+
 # Admin delete report route
 @app.route('/admin/delete_report', methods=['POST'])
 def admin_delete_report():
@@ -2416,6 +2478,7 @@ def admin_search_reports():
     
     clinic_id = session.get('clinicID')
     query = request.args.get('query', '').strip()
+    filter_by = request.args.get('filter', 'newest')  # Get filter parameter
     
     # Month name support
     month_map = {month.lower(): index for index, month in enumerate(calendar.month_name) if month}
@@ -2437,38 +2500,48 @@ def admin_search_reports():
                     year_num = int(match.group(1))
             break
     
+    # Determine ORDER BY clause based on filter
+    if filter_by == 'oldest':
+        order_clause = "ORDER BY r.reportDate ASC"
+    elif filter_by == 'expiry':
+        order_clause = "ORDER BY r.expiryDate ASC"
+    else:  # newest (default)
+        order_clause = "ORDER BY r.reportDate DESC"
+    
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor(dictionary=True)
     
     # Search based on whether we found a month
     if month_num and year_num:
         # Search by month and year
-        cursor.execute("""
-            SELECT r.reportID, r.reportDate, r.files,
+        query_sql = f"""
+            SELECT r.reportID, r.reportDate, r.expiryDate, r.files,
                    p.firstName AS patientFirstName, p.lastName AS patientLastName,
                    d.firstName AS doctorFirstName, d.lastName AS doctorLastName
             FROM Reports r
             JOIN patient p ON r.patientID = p.USERID
             JOIN doctor d ON r.doctorID = d.USERID
             WHERE p.clinicID = %s AND MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
-            ORDER BY r.reportDate DESC
-        """, (clinic_id, month_num, year_num))
+            {order_clause}
+        """
+        cursor.execute(query_sql, (clinic_id, month_num, year_num))
     elif month_num:
         # Search by month only
-        cursor.execute("""
-            SELECT r.reportID, r.reportDate, r.files,
+        query_sql = f"""
+            SELECT r.reportID, r.reportDate, r.expiryDate, r.files,
                    p.firstName AS patientFirstName, p.lastName AS patientLastName,
                    d.firstName AS doctorFirstName, d.lastName AS doctorLastName
             FROM Reports r
             JOIN patient p ON r.patientID = p.USERID
             JOIN doctor d ON r.doctorID = d.USERID
             WHERE p.clinicID = %s AND MONTH(r.reportDate) = %s
-            ORDER BY r.reportDate DESC
-        """, (clinic_id, month_num))
+            {order_clause}
+        """
+        cursor.execute(query_sql, (clinic_id, month_num))
     else:
         # Regular text search in report ID, date, patient name, or doctor name
-        cursor.execute("""
-            SELECT r.reportID, r.reportDate, r.files,
+        query_sql = f"""
+            SELECT r.reportID, r.reportDate, r.expiryDate, r.files,
                    p.firstName AS patientFirstName, p.lastName AS patientLastName,
                    d.firstName AS doctorFirstName, d.lastName AS doctorLastName
             FROM Reports r
@@ -2477,27 +2550,34 @@ def admin_search_reports():
             WHERE p.clinicID = %s AND (
                 CAST(r.reportID AS CHAR) LIKE %s
                 OR r.reportDate LIKE %s
+                OR r.expiryDate LIKE %s
                 OR p.firstName LIKE %s
                 OR p.lastName LIKE %s
                 OR d.firstName LIKE %s
                 OR d.lastName LIKE %s
             )
-            ORDER BY r.reportDate DESC
-        """, (clinic_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+            {order_clause}
+        """
+        cursor.execute(query_sql, (clinic_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
     
     reports = cursor.fetchall()
     cursor.close()
     conn.close()
     
-    # Convert reportDate to datetime if it's a string
+    # Convert dates to datetime if they're strings
     for r in reports:
         if isinstance(r['reportDate'], str):
             try:
                 r['reportDate'] = datetime.strptime(r['reportDate'], '%Y-%m-%d')
             except Exception:
                 pass
+        if isinstance(r.get('expiryDate'), str):
+            try:
+                r['expiryDate'] = datetime.strptime(r['expiryDate'], '%Y-%m-%d')
+            except Exception:
+                pass
     
-    return render_template('/clinic_admin/ManageReports.html', reports=reports)
+    return render_template('/clinic_admin/ManageReports.html', reports=reports, filter_by=filter_by, query=query)
 
 
 # Clinic admin: list / search / filter accounts
