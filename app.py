@@ -654,6 +654,11 @@ def patient_messages():
     if session.get('userType') != 'patient':
         return redirect(url_for('login'))
 
+    # Automatically delete expired messages
+    expired_count = delete_expired_messages()
+    if expired_count > 0:
+        flash(f"Automatically removed {expired_count} expired message(s).", "info")
+
     user_id = session.get('user_id')
 
     # Get DB connection and fetch doctors for the select box
@@ -727,6 +732,11 @@ def patient_messages():
 def patient_notifications():
     if session.get('userType') != 'patient':
         return redirect(url_for('login'))
+
+    # Automatically delete expired notifications
+    expired_count = delete_expired_notifications()
+    if expired_count > 0:
+        flash(f"Automatically removed {expired_count} expired notification(s).", "info")
 
     user_id = session.get('user_id')
 
@@ -2421,6 +2431,58 @@ def delete_expired_reports():
     if count > 0:
         # Delete expired reports
         cursor.execute("DELETE FROM Reports WHERE expiryDate < %s", (today,))
+        conn.commit()
+    
+    cursor.close()
+    conn.close()
+    
+    return count
+
+# Helper function to check and delete expired messages
+def delete_expired_messages():
+    """Delete all messages where expiryDate is before today's date."""
+    today = date.today()
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Find expired messages
+    cursor.execute("""
+        SELECT messageID, expiryDate FROM messages
+        WHERE expiryDate < %s
+    """, (today,))
+    
+    expired_messages = cursor.fetchall()
+    count = len(expired_messages)
+    
+    if count > 0:
+        # Delete expired messages
+        cursor.execute("DELETE FROM messages WHERE expiryDate < %s", (today,))
+        conn.commit()
+    
+    cursor.close()
+    conn.close()
+    
+    return count
+
+# Helper function to check and delete expired notifications
+def delete_expired_notifications():
+    """Delete all notifications where expiryDate is before today's date."""
+    today = date.today()
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Find expired notifications
+    cursor.execute("""
+        SELECT notificationID, expiryDate FROM notifications
+        WHERE expiryDate < %s
+    """, (today,))
+    
+    expired_notifications = cursor.fetchall()
+    count = len(expired_notifications)
+    
+    if count > 0:
+        # Delete expired notifications
+        cursor.execute("DELETE FROM notifications WHERE expiryDate < %s", (today,))
         conn.commit()
     
     cursor.close()

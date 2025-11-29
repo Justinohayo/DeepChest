@@ -70,6 +70,9 @@ CREATE TABLE `patient`(
     `doctorID`int(255),
     `childID`varchar(15) DEFAULT NULL,
      `clinicID` int(255) NOT NULL,
+     `email_opt_in` BOOLEAN NOT NULL DEFAULT TRUE,
+     `notifications_enabled` BOOLEAN DEFAULT FALSE,
+     `notification_email` varchar(255),
     PRIMARY KEY (USERID),
     FOREIGN KEY (USERID) REFERENCES login(USERID),
     FOREIGN KEY (doctorID) REFERENCES doctor(USERID),
@@ -77,9 +80,9 @@ CREATE TABLE `patient`(
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the patient table
-INSERT INTO `patient` (`firstName`, `lastName`, `age`,`dateofbirth`, `USERID`, `address`, `city`, `province`, `postalCode`, `phone`, `email`,`insurance`,`doctorID`,`childID`,`clinicID`) VALUES
-('Theisen', 'Reddy', '23','2001-08-25', '111', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'treddy@example.com','Blue Cross','222','','1000'),
-('Example', 'Person', '23','2001-08-25', '112', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'example@example.com','Blue Cross','222','','1000');
+INSERT INTO `patient` (`firstName`, `lastName`, `age`,`dateofbirth`, `USERID`, `address`, `city`, `province`, `postalCode`, `phone`, `email`,`insurance`,`doctorID`,`childID`,`clinicID`,`email_opt_in`,`notifications_enabled`,`notification_email`) VALUES
+('Theisen', 'Reddy', '23','2001-08-25', '111', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'treddy@example.com','Blue Cross','222','','1000','1', '1','theisen.reddy@gmail.com'),
+('Example', 'Person', '23','2001-08-25', '112', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'example@example.com','Blue Cross','222','','1000','1', '0',NULL);
 
 /*
         Creates a Table for appointments that includes apptID, patientID, appointment_date, appointment_time, doctorID, and symptoms
@@ -187,6 +190,7 @@ CREATE TABLE `messages` (
 `doctorID` int(255),
 `content` varchar(255),
 `time_sent` timestamp NOT NULL DEFAULT current_timestamp(),
+`expiryDate` date NOT NULL,
 PRIMARY KEY (messageID),
    FOREIGN KEY (patientID) REFERENCES patient(USERID),
    FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
@@ -212,6 +216,7 @@ CREATE TABLE notifications (
     relatedID INT NULL,                   -- optional: reportID, messageID, requestID etc
     notification_status BOOLEAN NOT NULL DEFAULT FALSE, -- false = pending, true = sent
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `expiryDate` date NOT NULL,
     FOREIGN KEY (patientID) REFERENCES patient(USERID),
     FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
 );
