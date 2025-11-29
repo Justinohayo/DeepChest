@@ -204,9 +204,14 @@ CREATE TABLE `account_update_requests` (
     FOREIGN KEY (`doctorID`) REFERENCES `doctor`(`USERID`)
 );
 
-CREATE TABLE `notifications` (
-    `patientID` INT,
-    `contact_info` VARCHAR(100),
-    `notification_status` BOOLEAN NOT NULL,
-    FOREIGN KEY (`patientID`) REFERENCES `patient`(`USERID`)
+CREATE TABLE notifications (
+    notificationID INT AUTO_INCREMENT PRIMARY KEY,
+    patientID INT,
+    doctorID INT,
+    event_type VARCHAR(50) NOT NULL,      -- 'REPORT_READY', 'REPORT_DELETED', 'ACCOUNT_APPROVED', etc
+    relatedID INT NULL,                   -- optional: reportID, messageID, requestID etc
+    notification_status BOOLEAN NOT NULL DEFAULT FALSE, -- false = pending, true = sent
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (patientID) REFERENCES patient(USERID),
+    FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
 );

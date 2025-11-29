@@ -446,6 +446,7 @@ def patient_book_appointment():
             cursor.close()
             conn.close()
             flash('Appointment booked successfully!')
+            create_notification(patient_id=user_id, doctor_id=doctor_id, event_type="APPOINTMENT_BOOKED")
             return redirect(url_for('patient_appointments'))
         except mysql.connector.Error as e:
             conn.rollback()
@@ -694,6 +695,7 @@ def patient_messages():
                 )
                 conn.commit()
                 flash('Message sent successfully.', 'success')
+                create_notification(doctor_id=doctor_id, patient_id=user_id, event_type="NEW_MESSAGE")
                 ins.close()
                 cursor.close()
                 conn.close()
@@ -725,53 +727,56 @@ def patient_messages():
 def patient_notifications():
     if session.get('userType') != 'patient':
         return redirect(url_for('login'))
+
     user_id = session.get('user_id')
 
     if request.method == 'POST':
         email = (request.form.get('email') or '').strip()
+        enable = request.form.get('enable') == 'on'   # checkbox
 
-        if not email:
-            flash('Please provide an email address.', 'error')
-            return render_template('patient/notifications.html', user_id=user_id)
+        if enable and not email:
+            flash("Please enter an email to enable notifications.", "error")
+            return redirect(url_for('patient_notifications'))
 
         try:
             conn = mysql.connector.connect(**db_config)
             cursor = conn.cursor()
-            # Add data into notifications table
-            # columns: patientID, contact_info, notification_status
-            cursor.execute(
-                """
-                INSERT INTO notifications (patientID, contact_info, notification_status)
-                VALUES (%s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                  contact_info = VALUES(contact_info),
-                  notification_status = VALUES(notification_status)
-                """,
-                (user_id, email, 1)
-            )
+
+            cursor.execute("""
+                UPDATE patient
+                SET notifications_enabled = %s,
+                    notification_email = %s
+                WHERE USERID = %s
+            """, (enable, email if enable else None, user_id))
+
             conn.commit()
             cursor.close()
             conn.close()
-            flash('You have successfully opted in for email notifications.', 'success')
+
+            flash("Notification settings updated.", "success")
             return redirect(url_for('patient_notifications'))
-        except mysql.connector.Error as e:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-            flash('Database error: {}'.format(str(e)), 'error')
-            try:
-                cursor.close()
-            except Exception:
-                pass
-            try:
-                conn.close()
-            except Exception:
-                pass
-            return render_template('patient/notifications.html', user_id=user_id)
+
+        except Exception as e:
+            flash("Database error: " + str(e), "error")
+            return redirect(url_for('patient_notifications'))
+
+    # GET request → show current settings
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT notifications_enabled, notification_email FROM patient WHERE USERID = %s", (user_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        'patient/notifications.html',
+        enabled=row["notifications_enabled"],
+        email=row["notification_email"]
+    )
+
 
     # GET
-    return render_template('patient/notifications.html', user_id=user_id)
+   # return render_template('patient/notifications.html', user_id=user_id)
 
 
 # Patient Manage Account Page (GET: pre-fill, POST: update)
@@ -805,6 +810,7 @@ def patient_account():
         """, (email, password, user_id))
         conn.commit()
         flash('Account updated successfully!')
+        create_notification(patient_id=user_id, event_type="ACCOUNT_UPDATED")
         # Re-fetch updated info for display
     cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id,))
     patient = cursor.fetchone()
@@ -1404,7 +1410,6 @@ def doctor_ai_diagnosis():
             return redirect(request.url)
 
     prediction = predict(file)
-
     return render_template(
         'doctor/doctor_ai_diagnosis.html',
         username=session.get('username'),
@@ -1452,40 +1457,85 @@ def doctor_account():
 
     return render_template('doctor/doctor_modifyaccount.html', doctor=doctor)
 
+def create_notification(patient_id=None, doctor_id=None, event_type="", related_id=None):
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
 
-#saves notification to the database
-def save_notification(patient_id, message):
-    """Save a notification for the patient only."""
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO notifications (patientID, doctorID, event_type, relatedID, notification_status)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (patient_id, doctor_id, event_type, related_id, 0))      # 0 = not yet sent
 
-    query = """
-    INSERT INTO notifications (patientID, contact_info, notification_status)
-    VALUES (%s, %s, %s)
-    """
-    # contact_info is patient email
-    cursor.execute("SELECT email FROM patient WHERE USERID = %s", (patient_id,))
-    patient_email = cursor.fetchone()
-    if patient_email:
-        cursor.execute(query, (patient_id, patient_email[0], False))
         conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print("Notification insert error:", str(e))
 
-    cursor.close()
-    conn.close()
+
+def send_notifications():
+    """
+    Retrieves pending notifications and processes them.
+    Actual email sending logic is a placeholder for SES or any other service.
+    """
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+
+        # Fetch all pending notifications
+        cursor.execute("""
+            SELECT n.notificationID, n.patientID, n.doctorID, n.event_type, n.relatedID,
+                   p.email AS patient_email, d.email AS doctor_email
+            FROM notifications n
+            LEFT JOIN patient p ON n.patientID = p.USERID
+            LEFT JOIN doctor d ON n.doctorID = d.USERID
+            WHERE n.notification_status = FALSE
+        """)
+        notifications = cursor.fetchall()
+
+        for n in notifications:
+            print(f"[{datetime.now()}] Notification ID: {n['notificationID']}")
+            print(f"  Event: {n['event_type']}, Related ID: {n['relatedID']}")
+            if n['patient_email']:
+                print(f"  Patient: {n['patient_email']}")
+            if n['doctor_email']:
+                print(f"  Doctor: {n['doctor_email']}")
+
+            # send email via SES here
+            send_email(
+                to_address=n['patient_email'] or n['doctor_email'], subject=get_notification_text(n['event_type']), body="You have a new notification.")
+
+            # Mark notification as sent
+            cursor.execute("""
+                UPDATE notifications
+                SET notification_status = TRUE, created_at = NOW()
+                WHERE notificationID = %s
+            """, (n['notificationID'],))
+            conn.commit()
+
+        cursor.close()
+        conn.close()
+        print(f"Processed {len(notifications)} pending notifications.")
+
+    except mysql.connector.Error as e:
+        print("Database error:", e)
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass
+
+def send_email(to_address, subject, body):
+    """
+    Placeholder function to send email via AWS SES
+    """
+    print(f"Sending email to {to_address} with subject '{subject}'")
+    print("Email body:")
+    print(body)
+    # Implement actual email sending logic here
 
 
-#get patient and doctor emails
-def get_emails(patient_id, doctor_id):
-    with mysql.connector.connect(**db_config) as conn:
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT email FROM patient WHERE USERID = %s", (patient_id,))
-            patient_email = cursor.fetchone()
-            cursor.execute("SELECT email FROM doctor WHERE USERID = %s", (doctor_id,))
-            doctor_email = cursor.fetchone()
-    return (
-        patient_email[0] if patient_email else None,
-        doctor_email[0] if doctor_email else None
-    )
 
 # Add Report Route (doctor adds a new report)
 @app.route('/add-report', methods=['POST'])
@@ -1513,61 +1563,21 @@ def add_report():
     cursor.close()
     conn.close()
 
-    # Notify patient only
-    message = f"A new report was added for patient ID {patient_id} on {report_date}."
-    save_notification(patient_id, message)
+    create_notification(patient_id=patient_id, doctor_id=doctor_id, event_type="REPORT_READY")
+    create_notification(doctor_id=doctor_id, patient_id=patient_id, event_type="REPORT_SENT_CONFIRMATION")
 
-    return jsonify({
-        "status": "success",
-        "message": "Report added and patient notified",
-    })
 
-# Update Report Route (doctor updates an existing report)
-@app.route('/update-report/<int:report_id>', methods=['PUT'])
-def update_report(report_id):
-    data = request.json
-    new_file = data.get('files', None)
 
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor()
+def get_notification_text(event_type):
+    lookup = {
+        "ACCOUNT_APPROVED": "Your doctor account modification request has been approved.",
+        "REPORT_READY": "Your medical report is now available.",
+        "REPORT_DELETED": "A medical report linked to your account has been deleted by admin.",
+        "REPORT_SENT": "A report has been successfully sent to a patient.",
+        "APPOINTMENT_BOOKED": "A new appointment has been booked.",
+    }
+    return lookup.get(event_type, "You have a new notification.")
 
-    # Update report
-    update_query = "UPDATE Reports SET files = %s WHERE reportID = %s"
-    cursor.execute(update_query, (new_file, report_id))
-    conn.commit()
-
-    # Get patient info
-    cursor.execute("SELECT patientID FROM Reports WHERE reportID = %s", (report_id,))
-    result = cursor.fetchone()
-    cursor.close()
-    conn.close()
-
-    if not result:
-        return jsonify({"error": "Report not found"}), 404
-
-    patient_id = result[0]
-
-    # Notify patient only
-    message = f"Report ID {report_id} was updated on {date.today()}."
-    save_notification(patient_id, message)
-
-    return jsonify({
-        "status": "success",
-        "message": "Report updated and patient notified",
-    })
-
-# Notification placeholder, actually sending emails will be implemented with SES
-def notify_users(report_id, patient_id, doctor_id, action):
-    """
-    Placeholder for SES.
-    """
-    print("=================================")
-    print(" NOTIFICATION TRIGGERED ")
-    print(f"Action: {action}")
-    print(f"Report ID: {report_id}")
-    print(f"Patient ID: {patient_id}")
-    print(f"Doctor ID: {doctor_id}")
-    print("=================================")
 
 # Clinic Admin Home Page
 @app.route('/admin_home')
@@ -1815,6 +1825,8 @@ def admin_managereports():
     expired_count = delete_expired_reports()
     if expired_count > 0:
         flash(f"Automatically removed {expired_count} expired report(s).", "info")
+        create_notification(event_type="REPORT_DELETED")
+
     
     clinic_id = session.get('clinicID')
     filter_by = request.args.get('filter', 'newest')  # Default to newest
