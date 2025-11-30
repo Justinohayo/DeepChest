@@ -75,5 +75,18 @@
         </div>
       </div>
     </div>
+    <div>
+      <h2> Which patients are we filing the report for?</h2>
+      <form action="{{ url_for('doctor_ai_diagnosis') }}" method="post">
+        <h2>Report Information</h2>
+        <button type="submit"> Generate Report </button>
+        {% if report}
+          <p>{{ report }}</p>
+        {% else %}
+          <p>Error in generating report.</p>
+        {% endif %}
+      </form>
+    </div>
+    
   </body>
 </html>

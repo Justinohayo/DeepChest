@@ -11,6 +11,11 @@ import numpy as np
 from tensorflow import keras
 from tensorflow.keras.utils import load_img, img_to_array
 import matplotlib as plt
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+from io import BytesIO
+from datetime import datetime
 
 
 app = Flask(__name__)
@@ -524,126 +529,126 @@ def admin_booked_times():
     times = [r[0].strftime('%H:%M:%S') if hasattr(r[0], 'strftime') else str(r[0]) for r in rows]
     return ','.join(times)
 
-# Patient Reports Page
-#@app.route('/patient/reports')
-#def patient_reports():
-    #if session.get('userType') == 'patient':
-       # user_id = session.get('user_id')
-        #conn = mysql.connector.connect(**db_config)
-        #cursor = conn.cursor(dictionary=True)
-        #cursor.execute("""
-           # SELECT r.reportID,r.files, r.reportDate, r.doctorID,
-             #      d.firstName AS doctorFirstName, d.lastName AS doctorLastName
-            #FROM Reports r
-           # JOIN doctor d ON r.doctorID = d.USERID
-           # WHERE r.patientID = %s
-           # ORDER BY r.reportDate DESC
-       # """, (user_id,))
-        #reports = cursor.fetchall()
-       # cursor.close()
-       # conn.close()
-       # for r in reports:
-           # if isinstance(r['reportDate'], str):
-               # try:
-                    #r['reportDate'] = datetime.strptime(r['reportDate'], '%Y-%m-%d')
-               # except Exception:
-                   # pass
-       # return render_template(
-            #'patient/myreports.html',
-           # user_id=user_id,
-           # reports=reports
-        #)
-    #return redirect(url_for('login'))
+#Patient Reports Page
+@app.route('/patient/reports')
+def patient_reports():
+    if session.get('userType') == 'patient':
+        user_id = session.get('user_id')
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT r.reportID,r.files, r.reportDate, r.doctorID,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE r.patientID = %s
+            ORDER BY r.reportDate DESC
+        """, (user_id,))
+        reports = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        for r in reports:
+            if isinstance(r['reportDate'], str):
+                try:
+                    r['reportDate'] = datetime.strptime(r['reportDate'], '%Y-%m-%d')
+                except Exception:
+                    pass
+        return render_template(
+            'patient/myreports.html',
+            user_id=user_id,
+            reports=reports
+        )
+    return redirect(url_for('login'))
 
-#@app.route('/patient/search_reports', methods=['GET'])
-#def search_reports():
-    #if session.get('userType') != 'patient':
-        #return redirect(url_for('login'))
-    #user_id = session.get('user_id')
-   # query = request.args.get('query', '').strip()
+@app.route('/patient/search_reports', methods=['GET'])
+def search_reports():
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    user_id = session.get('user_id')
+    query = request.args.get('query', '').strip()
 
-    # Month name support
-   # month_map = {month.lower(): index for index, month in enumerate(calendar.month_name) if month}
-    #query_lower = query.lower()
-    #month_num = None
-    #year_num = None
-    #for name, num in month_map.items():
-       # if name in query_lower:
-           # month_num = num
-           # match = re.search(rf"{name}\s+(\d{{4}})", query_lower)
-            #if match:
-                #year_num = int(match.group(1))
-            #else:
-                #match = re.search(rf"(\d{{4}})\s+{name}", query_lower)
-                #if match:
-                   # year_num = int(match.group(1))
-           # break
+    #month_name support
+    month_map = {month.lower(): index for index, month in enumerate(calendar.month_name) if month}
+    query_lower = query.lower()
+    month_num = None
+    year_num = None
+    for name, num in month_map.items():
+        if name in query_lower:
+            month_num = num
+            match = re.search(rf"{name}\s+(\d{{4}})", query_lower)
+            if match:
+                year_num = int(match.group(1))
+            else:
+                match = re.search(rf"(\d{{4}})\s+{name}", query_lower)
+                if match:
+                   year_num = int(match.group(1))
+            break
 
-   # conn = mysql.connector.connect(**db_config)
-   # cursor = conn.cursor(dictionary=True)
-   # if month_num and year_num:
-        #cursor.execute("""
-            #SELECT r.reportID,r.files, r.reportDate, r.doctorID,
-                  # d.firstName AS doctorFirstName, d.lastName AS doctorLastName
-            #FROM Reports r
-            #JOIN doctor d ON r.doctorID = d.USERID
-            #WHERE r.patientID = %s AND MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
-           # ORDER BY r.reportDate DESC
-       # """, (user_id, month_num, year_num))
-    #elif month_num:
-        #cursor.execute("""
-           # SELECT r.reportID,r.files, r.reportDate, r.doctorID,
-                  # d.firstName AS doctorFirstName, d.lastName AS doctorLastName
-            #FROM Reports r
-            #JOIN doctor d ON r.doctorID = d.USERID
-            #WHERE r.patientID = %s AND MONTH(r.reportDate) = %s
-            #ORDER BY r.reportDate DESC
-        #""", (user_id, month_num))
-   # else:
-        #cursor.execute("""
-           # SELECT r.reportID,r.files, r.reportDate, r.doctorID,
-              #     d.firstName AS doctorFirstName, d.lastName AS doctorLastName
-           # FROM Reports r
-            #JOIN doctor d ON r.doctorID = d.USERID
-            #WHERE r.patientID = %s AND (
-            #    CAST(r.reportID AS CHAR) LIKE %s
-            #    OR r.reportDate LIKE %s
-            #    OR d.firstName LIKE %s
-            #    OR d.lastName LIKE %s
-            #)
-            #ORDER BY r.reportDate DESC
-       # """, (user_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
-   # reports = cursor.fetchall()
-    #cursor.close()
-   # conn.close()
-   # return render_template(
-        #'patient/myreports.html',
-       # user_id=user_id,
-       # reports=reports
-   # )
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    if month_num and year_num:
+        cursor.execute("""
+            SELECT r.reportID,r.files, r.reportDate, r.doctorID,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE r.patientID = %s AND MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
+            ORDER BY r.reportDate DESC
+        """, (user_id, month_num, year_num))
+    elif month_num:
+        cursor.execute("""
+            SELECT r.reportID,r.files, r.reportDate, r.doctorID,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE r.patientID = %s AND MONTH(r.reportDate) = %s
+            ORDER BY r.reportDate DESC
+        """, (user_id, month_num))
+    else:
+        cursor.execute("""
+            SELECT r.reportID,r.files, r.reportDate, r.doctorID,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE r.patientID = %s AND (
+                CAST(r.reportID AS CHAR) LIKE %s
+                OR r.reportDate LIKE %s
+                OR d.firstName LIKE %s
+                OR d.lastName LIKE %s
+            )
+            ORDER BY r.reportDate DESC
+        """, (user_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+    reports = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return render_template(
+        'patient/myreports.html',
+        user_id=user_id,
+        reports=reports
+    )
 
 # Report details page for patients
-#@app.route('/patient/report_details')
-#def patient_report_details():
-   # if session.get('userType') != 'patient':
-      #  return redirect(url_for('login'))
-   # report_id = request.args.get('reportID')
-   # user_id = session.get('user_id')
-   # conn = mysql.connector.connect(**db_config)
-   # cursor = conn.cursor(dictionary=True)
-   # cursor.execute("""
-     #   SELECT r.*, d.firstName AS doctorFirstName, d.lastName AS doctorLastName
-    #    FROM Reports r
-    #    JOIN doctor d ON r.doctorID = d.USERID
-   # WHERE r.reportID = %s AND r.patientID = %s
-   # """, (report_id, user_id))
-   # report = cursor.fetchone()
-   # cursor.close()
-   # conn.close()
-  #  if not report:
-        #flash("Report not found.", "danger")
-      #  return redirect(url_for('patient_reports'))
-   # return render_template('patient/reportdetails.html', report=report)
+@app.route('/patient/report_details')
+def patient_report_details():
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    report_id = request.args.get('reportID')
+    user_id = session.get('user_id')
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT r.*, d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+        FROM Reports r
+        JOIN doctor d ON r.doctorID = d.USERID
+    WHERE r.reportID = %s AND r.patientID = %s
+    """, (report_id, user_id))
+    report = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if not report:
+        flash("Report not found.", "danger")
+        return redirect(url_for('patient_reports'))
+    return render_template('patient/reportdetails.html', report=report)
 
 # Patient Messages Page (GET: show form, POST: send/save message)
 @app.route('/patient/messages', methods=['GET', 'POST'])
@@ -1364,6 +1369,14 @@ def display_gradcam(img_path, model, last_conv_layer_name="last_conv"):
     plt.title(f"{pred_name} ({pred_prob:.1f}%)")
     plt.show()
 
+#get the x-ray from database method
+def get_xray(xray_id):
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT "
+    )
 def predict(file):
     img = load_img(file, target_size=(224,224))
     img_array = preprocess_input(file)
@@ -1382,6 +1395,52 @@ def predict(file):
     grad_cam = display_gradcam(file, model, last_conv_layer_name="last_conv")
 
     return grad_cam, predicted_label, predicted_prob, probs
+
+def generate_report(patient, doctor_notes, xray_bytes):
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    page_width, page_height = A4
+
+    c.setFont("Helvetica_Bold", 16)
+    c.drawString(50, page_height - 50, "Chest X-Ray Diagnostic Report")
+
+    c.seFont("Helvetica-Bold", 16)
+    c.drawString(50, page_height - 80, f"Patient Name: {patient['name']}")
+    c.drawString(50, page_height - 100, f"Patient's Symptoms: {patient['symptoms']}")
+    c.drawString(50, page_height - 120, f"Date: {datetime.now().strftime('%Y-%m-%d')}")
+
+    #doctor note 
+    text = c.beginText(50, page_height - 190)
+    text.textLines(f"Doctor's Notes:\n{doctor_notes}")
+    c.drawText(text)
+
+    #x-ray image
+    try:
+     img_buffr = BytesIO(xray_bytes)
+     xray_img = ImageReader(img_buffer)
+
+     img_w, img_h = xray_img.getSize()
+     max_w = page_width * 0.45
+     max_h = page_height * 0.45
+     scale = mix(max_w / img_w, max_h / img_h)
+
+     draw_w =  img_w * scale
+     draw_h = img_h * scale
+
+     x_pos = page_width - draw_w - 50
+     y_pos = page_height - draw_h - 250
+
+     c.drawImage(xray_img, x_pos, y_pos, width=draw_w, height=draw_h)
+
+    except Exception as e:
+     print("Error embedding X-ray image:", e)
+    
+    c.showPage()
+    c.save()
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+
+    return pdf_bytes
 
 # Doctor AI Diagnosis Page
 @app.route('/doctor/ai_diagnosis', methods=['GET', 'POST'])
