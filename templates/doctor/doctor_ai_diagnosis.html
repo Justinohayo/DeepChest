@@ -67,26 +67,46 @@
 
         <!-- Result Box -->
         <div class="result-box">
-          <h2>Prediction Report</h2>
-          {% if gradcam_b64 %}
-            <img src="data:image/png;base64,{{ gradcam_b64 }}" alt="Grad-CAM Heatmap"><br><br>
+          <h2>AI Diagnosis Results</h2>
+          {% if prediction %}
+            <h3>Predicted Condition: <strong>{{ prediction.label }}</strong></h3>
+            <h4>Confidence: <strong>{{ "%.2f"|format(prediction.prob) }}%</strong></h4>
+            
+            <h4>All Probabilities:</h4>
+            <ul style="text-align: left;">
+              {% for disease, prob in prediction.probs %}
+              <li><strong>{{ disease }}:</strong> {{ "%.2f"|format(prob) }}%</li>
+              {% endfor %}
+            </ul>
+            
+            <h4>Grad-CAM Heatmap:</h4>
+            {% if gradcam_b64 %}
+              <img src="data:image/png;base64,{{ gradcam_b64 }}" alt="Grad-CAM Heatmap" style="max-width: 100%; border: 1px solid #ddd; border-radius: 8px;"><br><br>
+            {% endif %}
           {% else %}
             <p>No analysis yet. Please upload an X-ray.</p>
           {% endif %}
         </div>
         
-        <!--Report Generation-->
-        <h2>Generate Report</h2>
-        <form action="{{url_for('doctor_ai_diagnosis')}}" method="post">
-          <input type="hidden" name="patient_id" value="{{patient_id }}">
-          <input type="hidden" name="xray_data" value="{{ file }}">
-          <input type="hidden" name="patient_name" value="{{ patient_name }}">
-          <label for="doctor_note">Doctor's Note:</label><br>
-          <textarea name="doctor_note" rows="4" cols="50" required></textarea><br><br>
-          <button type="submit" name="generate_report">Generate PDF Report</button>
-        </form>
-
       </div>
+
+      {% if prediction %}
+      <!-- Report Generation Section - only show after AI diagnosis -->
+      <div style="margin-top: 30px; padding: 20px; border: 1px solid #ccc; border-radius: 12px; background: #f9f9f9;">
+        <h2>Generate Report</h2>
+        <form action="{{ url_for('doctor_report_generation') }}" method="post">
+          <input type="hidden" name="patient_name" value="{{ patient_name }}">
+          
+          <label for="doctor_note">Doctor's Notes:</label><br>
+          <textarea name="doctor_note" rows="6" cols="80" placeholder="Enter your diagnosis notes and recommendations here..." required></textarea><br><br>
+          
+          <button type="submit" style="background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">
+            Generate PDF Report
+          </button>
+        </form>
+      </div>
+      {% endif %}
     </div>
+    
   </body>
 </html>
