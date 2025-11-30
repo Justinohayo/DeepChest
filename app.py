@@ -1,9 +1,5 @@
-<<<<<<< HEAD
 from time import time
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
-=======
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
->>>>>>> Report-generation
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, jsonify
 import mysql.connector
 import webbrowser
 import calendar
@@ -16,25 +12,16 @@ from cv2 import cvtColor, COLOR_BGR2RGB
 import numpy as np
 from tensorflow import keras
 from keras.utils import load_img, img_to_array
-<<<<<<< HEAD
 import matplotlib as plt
-<<<<<<< HEAD
-=======
 import matplotlib.pyplot as plt
->>>>>>> de9307c606e538115aac24bcc188cda08d44683a
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from io import BytesIO
-<<<<<<< HEAD
 from datetime import datetime
-=======
-from mysql.connector.errors import DatabaseError
->>>>>>> 5c047af394fc126cbe9fda7e977217500d2d9571
-=======
+
 import os
 import base64
->>>>>>> de9307c606e538115aac24bcc188cda08d44683a
 
 
 app = Flask(__name__)
@@ -1439,7 +1426,6 @@ def predict2(xray_bytes):
         "gradcam_png": gradcam_png,
     }
 
-<<<<<<< HEAD
 def display_gradcam(img_path, model, last_conv_layer_name="last_conv"):
     #img array
     img_array = preprocess_input(img_path)
@@ -1497,11 +1483,6 @@ def predict(file):
 
     return grad_cam, predicted_label, predicted_prob, probs
 
-<<<<<<< HEAD
-def generate_report(patient, doctor_notes, xray_bytes):
-=======
-=======
->>>>>>> Report-generation
 #get x-ray bytes
 def get_xray(xray_id):
     conn = mysql.connector.connect(**db_config)
@@ -1515,90 +1496,82 @@ def get_xray(xray_id):
         return None
     return row[0]
 
-def generate_report(patient, doctor_note, xray_bytes):
->>>>>>> de9307c606e538115aac24bcc188cda08d44683a
+def generate_report(patient, doctor_note, xray_bytes, pdf_title=None):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     page_width, page_height = A4
 
-<<<<<<< HEAD
-    c.setFont("Helvetica_Bold", 16)
-    c.drawString(50, page_height - 50, "Chest X-Ray Diagnostic Report")
+   
+    if pdf_title:
+        c.setTitle(pdf_title)
 
-    c.seFont("Helvetica-Bold", 16)
-    c.drawString(50, page_height - 80, f"Patient Name: {patient['name']}")
-    c.drawString(50, page_height - 100, f"Patient's Symptoms: {patient['symptoms']}")
-    c.drawString(50, page_height - 120, f"Date: {datetime.now().strftime('%Y-%m-%d')}")
+    # title
+    c.setFont("Helvetica-Bold", 20)
+    c.drawCentredString(page_width / 2, page_height - 60, "Chest X-Ray Diagnostic Report")
 
-    #doctor note 
-    text = c.beginText(50, page_height - 190)
-    text.textLines(f"Doctor's Notes:\n{doctor_notes}")
+    #patient info
+    y = page_height - 100
+    line_h = 14
+
+    def draw_meta(label, value):
+        nonlocal y
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(50, y, f"{label}:")
+        c.setFont("Helvetica", 11)
+        c.drawString(160, y, str(value))
+        y -= line_h
+
+    draw_meta("Patient Name", f"{patient['firstName']} {patient['lastName']}")
+    draw_meta("Patient Symptoms", patient['symptom'])
+    draw_meta("Date", datetime.now().strftime('%Y-%m-%d'))
+    draw_meta("Doctor", f"{session.get('firstName')} {session.get('lastName')}")
+
+    # seperate line
+    y -= 6
+    c.setLineWidth(0.5)
+    c.line(50, y, page_width - 50, y)
+    y -= 18
+
+    # Doctor notes
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, y, "Doctor Notes:")
+    y -= 16
+
+    text = c.beginText(50, y)
+    text.setFont("Helvetica", 11)
+    text.setLeading(14)
+    text.textLines(doctor_note)
     c.drawText(text)
 
-    #x-ray image
-    try:
-     img_buffr = BytesIO(xray_bytes)
-     xray_img = ImageReader(img_buffer)
+    # Reserve vertical space for notes (avoid overlapping the X-ray)
+    y_for_image = page_height * 0.35  # somewhere around middle of page
 
-     img_w, img_h = xray_img.getSize()
-     max_w = page_width * 0.45
-     max_h = page_height * 0.45
-     scale = mix(max_w / img_w, max_h / img_h)
-
-     draw_w =  img_w * scale
-     draw_h = img_h * scale
-
-     x_pos = page_width - draw_w - 50
-     y_pos = page_height - draw_h - 250
-
-     c.drawImage(xray_img, x_pos, y_pos, width=draw_w, height=draw_h)
-
-    except Exception as e:
-     print("Error embedding X-ray image:", e)
-    
-=======
-    #header
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, page_height - 50, "Chest X-Ray Diagnostic Report")
-    c.drawString(50, page_height - 70, f"Patient Name: {patient['firstName']} {patient['lastName']}")
-    c.drawString(50, page_height - 90, f"Patient Symptoms: {patient['symptom']}")
-    c.drawString(50, page_height - 110, f"Date: {datetime.now().strftime('%Y-%m-%d')}")
-    c.drawString(50, page_height - 130, f"Doctor: {session.get('firstName')} {session.get('lastName')}")
-
-    #doctor note
-    text = c.beginText(50, page_height - 160)
-    text.textLines(f"Doctor Notes:\n{doctor_note}")
-    c.drawText(text)
-
-    #xray-image
+    # ===== X-ray image =====
     try:
         img_buffer = BytesIO(xray_bytes)
         xray_img = ImageReader(img_buffer)
 
         img_w, img_h = xray_img.getSize()
         max_w = page_width * 0.45
-        max_h = page_height * 0.45
+        max_h = page_height * 0.35
         scale = min(max_w / img_w, max_h / img_h)
 
         draw_w = img_w * scale
         draw_h = img_h * scale
 
-        x_pos = page_width - draw_w - 50
-        y_pos = page_height - draw_h - 250
+        # center image horizontally
+        x_pos = (page_width - draw_w) / 2
+        y_pos = y_for_image
 
         c.drawImage(xray_img, x_pos, y_pos, width=draw_w, height=draw_h)
+
     except Exception as e:
         print("Error adding X-ray to PDF:", e)
 
->>>>>>> de9307c606e538115aac24bcc188cda08d44683a
     c.showPage()
     c.save()
     pdf_bytes = buffer.getvalue()
     buffer.close()
-<<<<<<< HEAD
-
-=======
->>>>>>> de9307c606e538115aac24bcc188cda08d44683a
     return pdf_bytes
 
 # Doctor AI Diagnosis Page
@@ -1635,13 +1608,14 @@ def doctor_report_generation():
     report_pdf = generate_report(
         patient={'firstName': patient_name.split(' ')[0], 'lastName': patient_name.split(' ')[1], 'symptom': patient_symptoms},
         doctor_note=doctor_note,
-        xray_bytes=xray_bytes
+        xray_bytes=xray_bytes,
+        pdf_title=f"Diagnostic Report: {patient_name} {report_date.strftime('%Y-%m-%d')}"
     )
     #save report to database
     cursor.execute("INSERT INTO Reports (patientID, doctorID, reportDate, expiryDate, files) VALUES (%s, %s, %s, %s, %s)",
                        (patient_id, doctor_id, report_date, report_expiry_date, report_pdf))
-    cursor.execute("SELECT reportID from Reports WHERE patientID = %s AND doctorID = %s AND reportDate = %s", (patient_id, doctor_id, report_date))
-    report_id = cursor.fetchone()[0]
+    #cursor.execute("SELECT reportID from Reports WHERE patientID = %s AND doctorID = %s AND reportDate = %s", (patient_id, doctor_id, report_date))
+    #report_id = cursor.fetchone()[0]
 
    # cursor.execute("SELECT files FROM Reports WHERE reportID = %s", (report_id,))
    # report_pdf2 = cursor.fetchone()[0]
@@ -1690,20 +1664,17 @@ def doctor_ai_diagnosis():
                 conn.close()
                 flash('Patient not found.')
 
-<<<<<<< HEAD
-    prediction = predict(file)
-=======
             else:
                 cursor.execute("""
                            INSERT INTO xrays (patientID, doctorID, date, expires_at, files) VALUES (%s, %s, %s, %s, %s)""", 
-                           (patient_id,doctor_id, datetime.now(),expiry_date, file.read()))
+                           (patient_id,doctor_id, datetime.now(),expiry_date, xray_bytes))
+                conn.commit()
                 cursor.close()
                 conn.close()
                 pred_result = predict2(xray_bytes)
                 prediction = pred_result
                 gradcam_b64 = base64.b64encode(pred_result["gradcam_png"]).decode('utf-8')
 
->>>>>>> de9307c606e538115aac24bcc188cda08d44683a
     return render_template(
         'doctor/doctor_ai_diagnosis.html',
         username=session.get('username'),

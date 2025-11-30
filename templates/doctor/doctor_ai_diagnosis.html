@@ -86,20 +86,8 @@
           <textarea name="doctor_note" rows="4" cols="50" required></textarea><br><br>
           <button type="submit" name="generate_report">Generate PDF Report</button>
         </form>
-
+        
       </div>
-    </div>
-    <div>
-      <h2> Which patients are we filing the report for?</h2>
-      <form action="{{ url_for('doctor_ai_diagnosis') }}" method="post">
-        <h2>Report Information</h2>
-        <button type="submit"> Generate Report </button>
-        {% if report}
-          <p>{{ report }}</p>
-        {% else %}
-          <p>Error in generating report.</p>
-        {% endif %}
-      </form>
     </div>
     
   </body>

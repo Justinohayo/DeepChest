@@ -114,7 +114,7 @@ CREATE TABLE `Reports` (
   `doctorID` int(255),
   `reportDate` date NOT NULL,
   `expiryDate` date NOT NULL,
-  `files` varbinary(255),
+  `files` LONGBLOB NOT NULL,
   PRIMARY KEY (reportID),
    FOREIGN KEY (patientID) REFERENCES patient(USERID),
    FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
@@ -172,7 +172,7 @@ CREATE TABLE `Xrays` (
   `doctorID` int(255),
   `date` date NOT NULL,
   `expires_at` DATETIME NULL,
-  `files` MEDIUMBLOB NOT NULL,
+  `files` LONGBLOB NOT NULL,
   PRIMARY KEY (xrayID),
      FOREIGN KEY (patientID) REFERENCES patient(USERID) ON DELETE CASCADE,
    FOREIGN KEY (doctorID) REFERENCES doctor(USERID) ON DELETE SET NULL
