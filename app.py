@@ -4,23 +4,33 @@ import mysql.connector
 import webbrowser
 import calendar
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import json
 import tensorflow as tf 
 import cv2
+from cv2 import cvtColor, COLOR_BGR2RGB
 import numpy as np
 from tensorflow import keras
 from keras.utils import load_img, img_to_array
+<<<<<<< HEAD
 import matplotlib as plt
 <<<<<<< HEAD
+=======
+import matplotlib.pyplot as plt
+>>>>>>> de9307c606e538115aac24bcc188cda08d44683a
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from io import BytesIO
+<<<<<<< HEAD
 from datetime import datetime
 =======
 from mysql.connector.errors import DatabaseError
 >>>>>>> 5c047af394fc126cbe9fda7e977217500d2d9571
+=======
+import os
+import base64
+>>>>>>> de9307c606e538115aac24bcc188cda08d44683a
 
 
 app = Flask(__name__)
@@ -30,7 +40,7 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 db_config = {
      'host': 'localhost',
     'user': 'root',
-    'password': 'test1234',
+    'password': '12345',
     'database': 'DeepChest'
 }
 
@@ -1313,56 +1323,117 @@ class_names = ["COVID19","NORMAL","PNEUMONIA","TUBERCOLOSIS"]
 
 
 # New symbolic input
-input_tensor = keras.Input(shape=(224, 224, 3))
+#input_tensor = keras.Input(shape=(224, 224, 3))
 
 # tracking last_conv output
-x = input_tensor
-last_conv_output = None
+#x = input_tensor
+#last_conv_output = None
 
-for layer in model.layers:
-    x = layer(x)
-    if layer.name == "last_conv":
-        last_conv_output = x
+#for layer in model.layers:
+#    x = layer(x)
+#    if layer.name == "last_conv":
+#        last_conv_output = x
 
-predictions = x  # this is the output of the last Dense layer
+#predictions = x  # this is the output of the last Dense layer
+
+last_conv_layer_name ="last_conv"
+last_conv_layer = model.get_layer(last_conv_layer_name)
+
+dummy = tf.zeros((1,224,224,3),dtype=tf.float32)
+_=model(dummy) #call once
+
+grad_model = keras.Model(
+    inputs=model.inputs,
+    outputs=[last_conv_layer.output, model.output]
+)
+
+
 
 def preprocess_input(file_storage):
+    file_storage.seek(0)
     img = load_img(file_storage, target_size=(224,224))
-    img_array = tf.keras.utils.img_to_array(img)
-    img_array = img_array / 255.0
+    img_array = img_to_array(img) / 255.0
     img_array = np.expand_dims(img_array, axis=0) #it will put the img (1,224,244,3) = (1, heights,width,channels), the number one means the number of batch
-    return img_array
+    img_uint8 = img_to_array(img).astype("uint8")
+    return img_array, img_uint8
 
 
-def make_gradcam_heatmap(img_array, model, last_conv_layer_name, pred_index=None):
-    grad_model = keras.Model(
-    inputs=input_tensor, outputs = [last_conv_output, predictions] #give out a grad and prediction probs
-)
+def make_gradcam_heatmap(img_array):
+  #grad_model = keras.Model(
+  #inputs=input_tensor, outputs = [last_conv_output, predictions] #give out a grad and prediction probs
+#)
+    img_tensor = tf.convert_to_tensor(img_array, dtype=tf.float32)
+    
     with tf.GradientTape() as tape:
-        last_conv_layer_output, preds = grad_model(img_array)
-        if pred_index is None:
-            pred_index = tf.argmax(preds[0])
-        class_channel = preds[:, pred_index]
+        conv_outputs, preds = grad_model(img_tensor, training=False)
+        
+        preds = preds[0]             
+        top_index = tf.argmax(preds)  
+        class_channel = preds[top_index]  
 
     # This is the gradient of the output neuron (top predicted or chosen)
-    grads = tape.gradient(class_channel, last_conv_layer_output)[0]
+    grads = tape.gradient(class_channel, conv_outputs)[0]
 
     # This is a vector where each entry is the mean intensity of the gradient
     # over a specific feature map channel
     pooled_grads = tf.reduce_mean(grads, axis=(0, 1))
 
     # We multiply each channel in the feature map array
-    last_conv_layer_output = last_conv_layer_output[0]
-    heatmap = last_conv_layer_output @ pooled_grads[..., tf.newaxis]
+    conv_outputs = conv_outputs
+    heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
     heatmap = tf.squeeze(heatmap)
 
    #normalize the heatmap 0-1
     heatmap = tf.maximum(heatmap, 0) / tf.math.reduce_max(heatmap)
     return heatmap.numpy(), preds.numpy()[0]
 
+def gradcam_overlay(img_uint8, heatmap):
+    h,w,_=img_uint8.shape
+    heatmap_resized = cv2.resize(heatmap, (w,h))
+    heatmap_color = cv2.applyColorMap(
+        np.uint8(255*heatmap_resized),
+        cv2.COLORMAP_JET
+    )
+    img_bgr = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2BGR)
+    overlay = cv2.addWeighted(img_bgr, 0.6, heatmap_color, 0.4, 0)
+    return overlay
+
+def overlay_png(overlay_bgr):
+    overlay_rgb = cv2.cvtColor(overlay_bgr, cv2.COLOR_RGB2BGR)
+    pil_img = keras.utils.array_to_img(overlay_bgr)
+    buf = BytesIO()
+    pil_img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf.read()
+
+def predict2(xray_bytes):
+    file_like = BytesIO(xray_bytes)
+
+    img_array, img_uint8 = preprocess_input(file_like)
+
+    heatmap, preds = make_gradcam_heatmap(img_array)
+
+    pred_idx = int(np.argmax(preds))
+    predicted_label = class_names[pred_idx]
+    predicted_prob = float(preds[pred_idx]*100.0)
+
+    overlay_bgr = cv2.addWeighted(img, 0.6, heatmap_color, 0.4, 0)
+    gradcam_png = overlay_png(overlay_bgr)
+
+    probs = list(zip(class_names,[float(p*100.0) for p in preds]))
+
+    #overlay_bgr = gradcam_overlay(img_uint8, heatmap)
+    #overlay_png = overlay_png(overlay_bgr)
+    return {
+        "label": predicted_label,
+        "prob": predicted_prob,
+        "probs": probs,
+        "gradcam_png": gradcam_png,
+    }
+
 def display_gradcam(img_path, model, last_conv_layer_name="last_conv"):
     #img array
-    img_array = preprocess_input(img_path, size=(224,224))
+    img_array = preprocess_input(img_path)
     
     # Load the original image
     img = keras.utils.load_img(img_path, target_size=(224,224))
@@ -1373,7 +1444,7 @@ def display_gradcam(img_path, model, last_conv_layer_name="last_conv"):
 
   # Predicted class + probability
     pred_idx = int(np.argmax(preds))
-    pred_name = class_names.get(pred_idx, "Unknown")
+    pred_name = class_names[pred_idx]
     pred_prob = float(preds[pred_idx]) * 100
 
     # colormap
@@ -1402,7 +1473,7 @@ def predict(file):
     img = load_img(file, target_size=(224,224))
     img_array = preprocess_input(file)
 
-    heatmap, preds = make_gradcam_heatmap(img_array)
+    heatmap, preds = make_gradcam_heatmap(img_array, model, last_conv_layer_name="last_conv")
 
     #interpreting the predictions
     predicted_idx = int(np.argmax(preds))
@@ -1417,11 +1488,29 @@ def predict(file):
 
     return grad_cam, predicted_label, predicted_prob, probs
 
+<<<<<<< HEAD
 def generate_report(patient, doctor_notes, xray_bytes):
+=======
+#get x-ray bytes
+def get_xray(xray_id):
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+    cursor.execute("SELECT files from xrays where xrayID = %s", (xray_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not row:
+        return None
+    return row[0]
+
+def generate_report(patient, doctor_note, xray_bytes):
+>>>>>>> de9307c606e538115aac24bcc188cda08d44683a
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     page_width, page_height = A4
 
+<<<<<<< HEAD
     c.setFont("Helvetica_Bold", 16)
     c.drawString(50, page_height - 50, "Chest X-Ray Diagnostic Report")
 
@@ -1456,36 +1545,151 @@ def generate_report(patient, doctor_notes, xray_bytes):
     except Exception as e:
      print("Error embedding X-ray image:", e)
     
+=======
+    #header
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, page_height - 50, "Chest X-Ray Diagnostic Report")
+    c.drawString(50, page_height - 70, f"Patient Name: {patient['firstName']} {patient['lastName']}")
+    c.drawString(50, page_height - 90, f"Patient Symptoms: {patient['symptom']}")
+    c.drawString(50, page_height - 110, f"Date: {datetime.now().strftime('%Y-%m-%d')}")
+    c.drawString(50, page_height - 130, f"Doctor: {session.get('firstName')} {session.get('lastName')}")
+
+    #doctor note
+    text = c.beginText(50, page_height - 160)
+    text.textLines(f"Doctor Notes:\n{doctor_note}")
+    c.drawText(text)
+
+    #xray-image
+    try:
+        img_buffer = BytesIO(xray_bytes)
+        xray_img = ImageReader(img_buffer)
+
+        img_w, img_h = xray_img.getSize()
+        max_w = page_width * 0.45
+        max_h = page_height * 0.45
+        scale = min(max_w / img_w, max_h / img_h)
+
+        draw_w = img_w * scale
+        draw_h = img_h * scale
+
+        x_pos = page_width - draw_w - 50
+        y_pos = page_height - draw_h - 250
+
+        c.drawImage(xray_img, x_pos, y_pos, width=draw_w, height=draw_h)
+    except Exception as e:
+        print("Error adding X-ray to PDF:", e)
+
+>>>>>>> de9307c606e538115aac24bcc188cda08d44683a
     c.showPage()
     c.save()
     pdf_bytes = buffer.getvalue()
     buffer.close()
+<<<<<<< HEAD
 
+=======
+>>>>>>> de9307c606e538115aac24bcc188cda08d44683a
     return pdf_bytes
 
 # Doctor AI Diagnosis Page
+
+@app.route('/doctor/report_generation', methods=['GET','POST'])
+def doctor_report_generation():
+    if session.get('userType') != 'doctor':
+        return redirect(url_for('login'))
+    
+    report_expiry_date = datetime.now() + timedelta(days=10)
+    patient_name = request.form.get('patient_name')
+    doctor_id = session.get('user_id')
+    doctor_note = request.form.get('doctor_note', 'No additional notes provided.')
+    
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+    report_date = datetime.now()
+
+    cursor.execute("SELECT USERID FROM patient WHERE CONCAT(firstName, ' ', lastName) = %s", (patient_name,))
+    patient_id = cursor.fetchone()[0]
+    cursor.execute("SELECT symptoms FROM appointments WHERE patientID = %s", (patient_id,))
+    patient_symptoms = cursor.fetchone()[0] or 'N/A'
+    
+    cursor.execute("SELECT xrayID FROM xrays WHERE patientID = %s AND date ~~ %s", (patient_id, report_date))
+    xray_id = cursor.fetchone()[0]
+    cursor.execute("SELECT files FROM xrays WHERE xrayID = %s", (xray_id,))
+    file = cursor.fetchone()[0]
+
+    report_pdf = generate_report(
+        patient={'firstName': patient_name.split(' ')[0], 'lastName': patient_name.split(' ')[1], 'symptom': patient_symptoms},
+        doctor_note=doctor_note,
+        xray_bytes=file
+    )
+    cursor.execute("INSERT INTO Reports (patientID, doctorID, reportDate, expiryDate, files) VALUES (%s, %s, %s, %s, %s)",
+                       (patient_id, doctor_id, report_date, report_expiry_date, report_pdf))
+    cursor.execute("SELECT reportID from Reports WHERE patientID = %s AND doctorID = %s AND reportDate = %s", (patient_id, doctor_id, report_date))
+    report_id = cursor.fetchone()[0]
+
+    cursor.execute("SELECT files FROM Reports WHERE reportID = %s", (report_id,))
+    report_pdf2 = cursor.fetchone()[0]
+    cursor.close()
+    conn.close()
+    webbrowser.open_new_tab(report_pdf2)
+
+    return render_template(
+        'doctor/doctor_ai_diagnosis.html',
+        username=session.get('username'),
+        )
+
+
 @app.route('/doctor/ai_diagnosis', methods=['GET', 'POST'])
 def doctor_ai_diagnosis():
     if session.get('userType') != 'doctor':
         return redirect(url_for('login'))
 
     prediction = None
-
+    gradcam_b64 = None
+    patient_name = request.form.get('patient_name')
+    doctor_id = session.get('user_id')
+    expiry_date = datetime.now() + timedelta(days=10)
+    
     if request.method == 'POST':
         if 'xray' not in request.files:
             flash('No file uploaded.')
             return redirect(request.url)
 
         file = request.files['xray']
+        xray_bytes = file.read()
+
         if file.filename == '':
             flash('No selected file.')
             return redirect(request.url)
+        else:
+            conn = mysql.connector.connect(**db_config)
+            cursor = conn.cursor()
+            cursor.execute("SELECT USERID FROM patient WHERE CONCAT(firstName, ' ', lastName) = %s", (patient_name,))
+            patient_id = cursor.fetchone()[0]
+            if not patient_id:
+                cursor.close()
+                conn.close()
+                flash('Patient not found.')
 
+<<<<<<< HEAD
     prediction = predict(file)
+=======
+            else:
+                cursor.execute("""
+                           INSERT INTO xrays (patientID, doctorID, date, expires_at, files) VALUES (%s, %s, %s, %s, %s)""", 
+                           (patient_id,doctor_id, datetime.now(),expiry_date, file.read()))
+                cursor.close()
+                conn.close()
+                pred_result = predict2(xray_bytes)
+                prediction = pred_result
+                gradcam_b64 = base64.b64encode(pred_result["gradcam_png"]).decode('utf-8')
+
+>>>>>>> de9307c606e538115aac24bcc188cda08d44683a
     return render_template(
         'doctor/doctor_ai_diagnosis.html',
         username=session.get('username'),
-        prediction=prediction
+        patient_name=patient_name,
+        prediction=prediction,
+        gradcam_b64=gradcam_b64
     )
 
 #request to modify doctor account details

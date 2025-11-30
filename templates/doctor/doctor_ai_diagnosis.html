@@ -59,6 +59,7 @@
         <div class="upload-box">
           <h2>Upload X-Ray</h2>
           <form action="{{ url_for('doctor_ai_diagnosis') }}" method="post" enctype="multipart/form-data">
+            <input type="text" name="patient_name" placeholder="Patient Name" required /><br><br>
             <input type="file" name="xray" accept="image/*" required><br><br>
             <button type="submit">Analyze</button>
           </form>
@@ -67,12 +68,24 @@
         <!-- Result Box -->
         <div class="result-box">
           <h2>Prediction Report</h2>
-          {% if prediction %}
-            <p>{{ prediction }}</p>
+          {% if gradcam_b64 %}
+            <img src="data:image/png;base64,{{ gradcam_b64 }}" alt="Grad-CAM Heatmap"><br><br>
           {% else %}
             <p>No analysis yet. Please upload an X-ray.</p>
           {% endif %}
         </div>
+        
+        <!--Report Generation-->
+        <h2>Generate Report</h2>
+        <form action="{{url_for('doctor_ai_diagnosis')}}" method="post">
+          <input type="hidden" name="patient_id" value="{{patient_id }}">
+          <input type="hidden" name="xray_data" value="{{ file }}">
+          <input type="hidden" name="patient_name" value="{{ patient_name }}">
+          <label for="doctor_note">Doctor's Note:</label><br>
+          <textarea name="doctor_note" rows="4" cols="50" required></textarea><br><br>
+          <button type="submit" name="generate_report">Generate PDF Report</button>
+        </form>
+
       </div>
     </div>
     <div>
