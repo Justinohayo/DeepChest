@@ -167,10 +167,11 @@ CREATE TABLE `Xrays` (
   `patientID` int(255) NOT NULL,
   `doctorID` int(255),
   `date` date NOT NULL,
-  `files` varbinary(255),
+  `expires_at` DATETIME NULL,
+  `files` MEDIUMBLOB NOT NULL,
   PRIMARY KEY (xrayID),
-     FOREIGN KEY (patientID) REFERENCES patient(USERID),
-   FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
+     FOREIGN KEY (patientID) REFERENCES patient(USERID) ON DELETE CASCADE,
+   FOREIGN KEY (doctorID) REFERENCES doctor(USERID) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the xrays table
