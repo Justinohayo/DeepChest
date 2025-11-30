@@ -1293,32 +1293,24 @@ model = tf.keras.models.load_model(model_path)
 class_names = ["COVID19","NORMAL","PNEUMONIA","TUBERCOLOSIS"]
 
 
-# New symbolic input
-#input_tensor = keras.Input(shape=(224, 224, 3))
+#New symbolic input
+input_tensor = keras.Input(shape=(224, 224, 3))
 
 # tracking last_conv output
-#x = input_tensor
-#last_conv_output = None
+x = input_tensor
+last_conv_output = None
 
-#for layer in model.layers:
-#    x = layer(x)
-#    if layer.name == "last_conv":
-#        last_conv_output = x
+for layer in model.layers:
+    x = layer(x)
+    if layer.name == "last_conv":
+        last_conv_output = x
 
-#predictions = x  # this is the output of the last Dense layer
-
-last_conv_layer_name ="last_conv"
-last_conv_layer = model.get_layer(last_conv_layer_name)
-
-dummy = tf.zeros((1,224,224,3),dtype=tf.float32)
-_=model(dummy) #call once
+predictions = x  # this is the output of the last Dense layer
 
 grad_model = keras.Model(
-    inputs=model.inputs,
-    outputs=[last_conv_layer.output, model.output]
+    inputs=input_tensor,
+    outputs=[last_conv_output, predictions]
 )
-
-
 
 def preprocess_input(file_storage):
     file_storage.seek(0)
@@ -1356,7 +1348,7 @@ def make_gradcam_heatmap(img_array):
 
    #normalize the heatmap 0-1
     heatmap = tf.maximum(heatmap, 0) / tf.math.reduce_max(heatmap)
-    return heatmap.numpy(), preds.numpy()[0]
+    return heatmap.numpy(), preds.numpy()
 
 def gradcam_overlay(img_uint8, heatmap):
     h,w,_=img_uint8.shape
@@ -1386,15 +1378,27 @@ def predict2(xray_bytes):
 
     pred_idx = int(np.argmax(preds))
     predicted_label = class_names[pred_idx]
-    predicted_prob = float(preds[pred_idx]*100.0)
+    predicted_prob = float(preds[pred_idx] * 100.0)
 
-    overlay_bgr = cv2.addWeighted(img, 0.6, heatmap_color, 0.4, 0)
-    gradcam_png = overlay_png(overlay_bgr)
+    h, w, _ = img_uint8.shape
+    heatmap_resized = cv2.resize(heatmap, (w, h))
+    heatmap_color = cv2.applyColorMap(
+        np.uint8(255 * heatmap_resized),
+        cv2.COLORMAP_JET
+    )
+    img_bgr = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2BGR)
+    overlay_bgr = cv2.addWeighted(img_bgr, 0.6, heatmap_color, 0.4, 0)
 
-    probs = list(zip(class_names,[float(p*100.0) for p in preds]))
+    # convert overlay to PNG bytes
+    overlay_rgb = cv2.cvtColor(overlay_bgr, cv2.COLOR_BGR2RGB)
+    pil_img = keras.utils.array_to_img(overlay_rgb)
+    buf = BytesIO()
+    pil_img.save(buf, format="PNG")
+    buf.seek(0)
+    gradcam_png = buf.read()
 
-    #overlay_bgr = gradcam_overlay(img_uint8, heatmap)
-    #overlay_png = overlay_png(overlay_bgr)
+    probs = list(zip(class_names, [float(p * 100.0) for p in preds]))
+
     return {
         "label": predicted_label,
         "prob": predicted_prob,
