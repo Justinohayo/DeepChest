@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from time import time
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 import mysql.connector
 import webbrowser
 import calendar
@@ -9,13 +10,17 @@ import tensorflow as tf
 import cv2
 import numpy as np
 from tensorflow import keras
-from tensorflow.keras.utils import load_img, img_to_array
+from keras.utils import load_img, img_to_array
 import matplotlib as plt
+<<<<<<< HEAD
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from io import BytesIO
 from datetime import datetime
+=======
+from mysql.connector.errors import DatabaseError
+>>>>>>> 5c047af394fc126cbe9fda7e977217500d2d9571
 
 
 app = Flask(__name__)
@@ -449,6 +454,7 @@ def patient_book_appointment():
             cursor.close()
             conn.close()
             flash('Appointment booked successfully!')
+            create_notification(patient_id=user_id, doctor_id=doctor_id, event_type="APPOINTMENT_BOOKED")
             return redirect(url_for('patient_appointments'))
         except mysql.connector.Error as e:
             conn.rollback()
@@ -656,6 +662,11 @@ def patient_messages():
     if session.get('userType') != 'patient':
         return redirect(url_for('login'))
 
+    # Automatically delete expired messages
+    expired_count = delete_expired_messages()
+    if expired_count > 0:
+        flash(f"Automatically removed {expired_count} expired message(s).", "info")
+
     user_id = session.get('user_id')
 
     # Get DB connection and fetch doctors for the select box
@@ -697,6 +708,7 @@ def patient_messages():
                 )
                 conn.commit()
                 flash('Message sent successfully.', 'success')
+                create_notification(doctor_id=doctor_id, patient_id=user_id, event_type="NEW_MESSAGE")
                 ins.close()
                 cursor.close()
                 conn.close()
@@ -728,53 +740,61 @@ def patient_messages():
 def patient_notifications():
     if session.get('userType') != 'patient':
         return redirect(url_for('login'))
+
+    # Automatically delete expired notifications
+    expired_count = delete_expired_notifications()
+    if expired_count > 0:
+        flash(f"Automatically removed {expired_count} expired notification(s).", "info")
+
     user_id = session.get('user_id')
 
     if request.method == 'POST':
         email = (request.form.get('email') or '').strip()
+        enable = request.form.get('enable') == 'on'   # checkbox
 
-        if not email:
-            flash('Please provide an email address.', 'error')
-            return render_template('patient/notifications.html', user_id=user_id)
+        if enable and not email:
+            flash("Please enter an email to enable notifications.", "error")
+            return redirect(url_for('patient_notifications'))
 
         try:
             conn = mysql.connector.connect(**db_config)
             cursor = conn.cursor()
-            # Add data into notifications table
-            # columns: patientID, contact_info, notification_status
-            cursor.execute(
-                """
-                INSERT INTO notifications (patientID, contact_info, notification_status)
-                VALUES (%s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                  contact_info = VALUES(contact_info),
-                  notification_status = VALUES(notification_status)
-                """,
-                (user_id, email, 1)
-            )
+
+            cursor.execute("""
+                UPDATE patient
+                SET notifications_enabled = %s,
+                    notification_email = %s
+                WHERE USERID = %s
+            """, (enable, email if enable else None, user_id))
+
             conn.commit()
             cursor.close()
             conn.close()
-            flash('You have successfully opted in for email notifications.', 'success')
+
+            flash("Notification settings updated.", "success")
             return redirect(url_for('patient_notifications'))
-        except mysql.connector.Error as e:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-            flash('Database error: {}'.format(str(e)), 'error')
-            try:
-                cursor.close()
-            except Exception:
-                pass
-            try:
-                conn.close()
-            except Exception:
-                pass
-            return render_template('patient/notifications.html', user_id=user_id)
+
+        except Exception as e:
+            flash("Database error: " + str(e), "error")
+            return redirect(url_for('patient_notifications'))
+
+    # GET request → show current settings
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT notifications_enabled, notification_email FROM patient WHERE USERID = %s", (user_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        'patient/notifications.html',
+        enabled=row["notifications_enabled"],
+        email=row["notification_email"]
+    )
+
 
     # GET
-    return render_template('patient/notifications.html', user_id=user_id)
+   # return render_template('patient/notifications.html', user_id=user_id)
 
 
 # Patient Manage Account Page (GET: pre-fill, POST: update)
@@ -808,6 +828,7 @@ def patient_account():
         """, (email, password, user_id))
         conn.commit()
         flash('Account updated successfully!')
+        create_notification(patient_id=user_id, event_type="ACCOUNT_UPDATED")
         # Re-fetch updated info for display
     cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id,))
     patient = cursor.fetchone()
@@ -1461,7 +1482,6 @@ def doctor_ai_diagnosis():
             return redirect(request.url)
 
     prediction = predict(file)
-
     return render_template(
         'doctor/doctor_ai_diagnosis.html',
         username=session.get('username'),
@@ -1509,7 +1529,126 @@ def doctor_account():
 
     return render_template('doctor/doctor_modifyaccount.html', doctor=doctor)
 
+def create_notification(patient_id=None, doctor_id=None, event_type="", related_id=None):
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
 
+        cursor.execute("""
+            INSERT INTO notifications (patientID, doctorID, event_type, relatedID, notification_status)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (patient_id, doctor_id, event_type, related_id, 0))      # 0 = not yet sent
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print("Notification insert error:", str(e))
+
+
+def send_notifications():
+    """
+    Retrieves pending notifications and processes them.
+    Actual email sending logic is a placeholder for SES or any other service.
+    """
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+
+        # Fetch all pending notifications
+        cursor.execute("""
+            SELECT n.notificationID, n.patientID, n.doctorID, n.event_type, n.relatedID,
+                   p.email AS patient_email, d.email AS doctor_email
+            FROM notifications n
+            LEFT JOIN patient p ON n.patientID = p.USERID
+            LEFT JOIN doctor d ON n.doctorID = d.USERID
+            WHERE n.notification_status = FALSE
+        """)
+        notifications = cursor.fetchall()
+
+        for n in notifications:
+            print(f"[{datetime.now()}] Notification ID: {n['notificationID']}")
+            print(f"  Event: {n['event_type']}, Related ID: {n['relatedID']}")
+            if n['patient_email']:
+                print(f"  Patient: {n['patient_email']}")
+            if n['doctor_email']:
+                print(f"  Doctor: {n['doctor_email']}")
+
+            # send email via SES here
+            send_email(
+                to_address=n['patient_email'] or n['doctor_email'], subject=get_notification_text(n['event_type']), body="You have a new notification.")
+
+            # Mark notification as sent
+            cursor.execute("""
+                UPDATE notifications
+                SET notification_status = TRUE, created_at = NOW()
+                WHERE notificationID = %s
+            """, (n['notificationID'],))
+            conn.commit()
+
+        cursor.close()
+        conn.close()
+        print(f"Processed {len(notifications)} pending notifications.")
+
+    except mysql.connector.Error as e:
+        print("Database error:", e)
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass
+
+def send_email(to_address, subject, body):
+    """
+    Placeholder function to send email via AWS SES
+    """
+    print(f"Sending email to {to_address} with subject '{subject}'")
+    print("Email body:")
+    print(body)
+    # Implement actual email sending logic here
+
+
+
+# Add Report Route (doctor adds a new report)
+@app.route('/add-report', methods=['POST'])
+def add_report():
+    data = request.json
+
+    patient_id = data.get('patient_id')
+    doctor_id = data.get('doctor_id')
+
+    if not patient_id or not doctor_id:
+        return jsonify({"error": "patient_id and doctor_id are required"}), 400
+
+    report_date = data.get('report_date', str(date.today()))
+    files = data.get('files', None)
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+
+    query = """
+    INSERT INTO Reports (patientID, doctorID, reportDate, files)
+    VALUES (%s, %s, %s, %s)
+    """
+    cursor.execute(query, (patient_id, doctor_id, report_date, files))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    create_notification(patient_id=patient_id, doctor_id=doctor_id, event_type="REPORT_READY")
+    create_notification(doctor_id=doctor_id, patient_id=patient_id, event_type="REPORT_SENT_CONFIRMATION")
+
+
+
+def get_notification_text(event_type):
+    lookup = {
+        "ACCOUNT_APPROVED": "Your doctor account modification request has been approved.",
+        "REPORT_READY": "Your medical report is now available.",
+        "REPORT_DELETED": "A medical report linked to your account has been deleted by admin.",
+        "REPORT_SENT": "A report has been successfully sent to a patient.",
+        "APPOINTMENT_BOOKED": "A new appointment has been booked.",
+    }
+    return lookup.get(event_type, "You have a new notification.")
 
 
 # Clinic Admin Home Page
@@ -1752,8 +1891,60 @@ def clinic_manage_clinic():
 @app.route('/admin/manage_reports')
 def admin_managereports():
     if session.get('userType') != 'clinicadmin':
-       return redirect(url_for('login'))
-    return render_template('/clinic_admin/ManageReports.html')
+        return redirect(url_for('login'))
+    
+    # Automatically delete expired reports
+    expired_count = delete_expired_reports()
+    if expired_count > 0:
+        flash(f"Automatically removed {expired_count} expired report(s).", "info")
+        create_notification(event_type="REPORT_DELETED")
+
+    
+    clinic_id = session.get('clinicID')
+    filter_by = request.args.get('filter', 'newest')  # Default to newest
+    
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Determine ORDER BY clause based on filter
+    if filter_by == 'oldest':
+        order_clause = "ORDER BY r.reportDate ASC"
+    elif filter_by == 'expiry':
+        order_clause = "ORDER BY r.expiryDate ASC"
+    else:  # newest (default)
+        order_clause = "ORDER BY r.reportDate DESC"
+    
+    # Fetch all reports for the clinic
+    query = f"""
+        SELECT r.reportID, r.reportDate, r.expiryDate, r.files,
+               p.firstName AS patientFirstName, p.lastName AS patientLastName,
+               d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+        FROM Reports r
+        JOIN patient p ON r.patientID = p.USERID
+        JOIN doctor d ON r.doctorID = d.USERID
+        WHERE p.clinicID = %s
+        {order_clause}
+    """
+    cursor.execute(query, (clinic_id,))
+    
+    reports = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    # Convert dates to datetime if they're strings
+    for r in reports:
+        if isinstance(r['reportDate'], str):
+            try:
+                r['reportDate'] = datetime.strptime(r['reportDate'], '%Y-%m-%d')
+            except Exception:
+                pass
+        if isinstance(r.get('expiryDate'), str):
+            try:
+                r['expiryDate'] = datetime.strptime(r['expiryDate'], '%Y-%m-%d')
+            except Exception:
+                pass
+    
+    return render_template('/clinic_admin/ManageReports.html', reports=reports, filter_by=filter_by)
 
 @app.route('/admin/book-appointment', methods=['GET', 'POST'])
 def admin_book_appointment():
@@ -2266,11 +2457,263 @@ def admin_reports_search():
         return redirect(url_for('login'))
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM Reports WHERE reportID = %s", (reportID,))
+    cursor.execute("""
+        SELECT r.*, 
+               p.firstName AS patientFirstName, p.lastName AS patientLastName,
+               d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+        FROM Reports r
+        JOIN patient p ON r.patientID = p.USERID
+        JOIN doctor d ON r.doctorID = d.USERID
+        WHERE r.reportID = %s
+    """, (reportID,))
     report = cursor.fetchone()
     cursor.close()
     conn.close()
-    return render_template('clinic_admin/ManageReports.html', report=report)
+    if not report:
+        flash("Report not found.", "danger")
+        return redirect(url_for('admin_managereports'))
+    return render_template('clinic_admin/reportdetails.html', report=report)
+
+# Helper function to check and delete expired reports
+def delete_expired_reports():
+    """Delete all reports where expiryDate is before today's date."""
+    today = date.today()
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Find expired reports
+    cursor.execute("""
+        SELECT reportID, expiryDate FROM Reports
+        WHERE expiryDate < %s
+    """, (today,))
+    
+    expired_reports = cursor.fetchall()
+    count = len(expired_reports)
+    
+    if count > 0:
+        # Delete expired reports
+        cursor.execute("DELETE FROM Reports WHERE expiryDate < %s", (today,))
+        conn.commit()
+    
+    cursor.close()
+    conn.close()
+    
+    return count
+
+# Helper function to check and delete expired messages
+def delete_expired_messages():
+    """Delete all messages where expiryDate is before today's date."""
+    today = date.today()
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Find expired messages
+    cursor.execute("""
+        SELECT messageID, expiryDate FROM messages
+        WHERE expiryDate < %s
+    """, (today,))
+    
+    expired_messages = cursor.fetchall()
+    count = len(expired_messages)
+    
+    if count > 0:
+        # Delete expired messages
+        cursor.execute("DELETE FROM messages WHERE expiryDate < %s", (today,))
+        conn.commit()
+    
+    cursor.close()
+    conn.close()
+    
+    return count
+
+# Helper function to check and delete expired notifications
+def delete_expired_notifications():
+    """Delete all notifications where expiryDate is before today's date."""
+    today = date.today()
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Find expired notifications
+    cursor.execute("""
+        SELECT notificationID, expiryDate FROM notifications
+        WHERE expiryDate < %s
+    """, (today,))
+    
+    expired_notifications = cursor.fetchall()
+    count = len(expired_notifications)
+    
+    if count > 0:
+        # Delete expired notifications
+        cursor.execute("DELETE FROM notifications WHERE expiryDate < %s", (today,))
+        conn.commit()
+    
+    cursor.close()
+    conn.close()
+    
+    return count
+
+# Admin route to manually trigger expired reports cleanup
+@app.route('/admin/cleanup_expired_reports', methods=['POST'])
+def admin_cleanup_expired_reports():
+    if session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+    
+    count = delete_expired_reports()
+    
+    if count > 0:
+        flash(f"Successfully deleted {count} expired report(s).", "success")
+    else:
+        flash("No expired reports found.", "info")
+    
+    return redirect(url_for('admin_managereports'))
+
+# Admin delete report route
+@app.route('/admin/delete_report', methods=['POST'])
+def admin_delete_report():
+    if session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+    
+    report_id = request.form.get('reportID')
+    if not report_id:
+        flash("Invalid report ID.", "danger")
+        return redirect(url_for('admin_managereports'))
+    
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Verify the report belongs to this clinic
+    clinic_id = session.get('clinicID')
+    cursor.execute("""
+        SELECT r.reportID 
+        FROM Reports r
+        JOIN patient p ON r.patientID = p.USERID
+        WHERE r.reportID = %s AND p.clinicID = %s
+    """, (report_id, clinic_id))
+    
+    report = cursor.fetchone()
+    if not report:
+        flash("Report not found or access denied.", "danger")
+        cursor.close()
+        conn.close()
+        return redirect(url_for('admin_managereports'))
+    
+    # Delete the report
+    cursor.execute("DELETE FROM Reports WHERE reportID = %s", (report_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    flash("Report deleted successfully.", "success")
+    return redirect(url_for('admin_managereports'))
+
+# Admin search reports route
+@app.route('/admin/search_reports', methods=['GET'])
+def admin_search_reports():
+    if session.get('userType') != 'clinicadmin':
+        return redirect(url_for('login'))
+    
+    clinic_id = session.get('clinicID')
+    query = request.args.get('query', '').strip()
+    filter_by = request.args.get('filter', 'newest')  # Get filter parameter
+    
+    # Month name support
+    month_map = {month.lower(): index for index, month in enumerate(calendar.month_name) if month}
+    query_lower = query.lower()
+    month_num = None
+    year_num = None
+    
+    # Check if query contains a month name
+    for name, num in month_map.items():
+        if name in query_lower:
+            month_num = num
+            # Check for year with month (e.g., "April 2025" or "2025 April")
+            match = re.search(rf"{name}\s+(\d{{4}})", query_lower)
+            if match:
+                year_num = int(match.group(1))
+            else:
+                match = re.search(rf"(\d{{4}})\s+{name}", query_lower)
+                if match:
+                    year_num = int(match.group(1))
+            break
+    
+    # Determine ORDER BY clause based on filter
+    if filter_by == 'oldest':
+        order_clause = "ORDER BY r.reportDate ASC"
+    elif filter_by == 'expiry':
+        order_clause = "ORDER BY r.expiryDate ASC"
+    else:  # newest (default)
+        order_clause = "ORDER BY r.reportDate DESC"
+    
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Search based on whether we found a month
+    if month_num and year_num:
+        # Search by month and year
+        query_sql = f"""
+            SELECT r.reportID, r.reportDate, r.expiryDate, r.files,
+                   p.firstName AS patientFirstName, p.lastName AS patientLastName,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN patient p ON r.patientID = p.USERID
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE p.clinicID = %s AND MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
+            {order_clause}
+        """
+        cursor.execute(query_sql, (clinic_id, month_num, year_num))
+    elif month_num:
+        # Search by month only
+        query_sql = f"""
+            SELECT r.reportID, r.reportDate, r.expiryDate, r.files,
+                   p.firstName AS patientFirstName, p.lastName AS patientLastName,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN patient p ON r.patientID = p.USERID
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE p.clinicID = %s AND MONTH(r.reportDate) = %s
+            {order_clause}
+        """
+        cursor.execute(query_sql, (clinic_id, month_num))
+    else:
+        # Regular text search in report ID, date, patient name, or doctor name
+        query_sql = f"""
+            SELECT r.reportID, r.reportDate, r.expiryDate, r.files,
+                   p.firstName AS patientFirstName, p.lastName AS patientLastName,
+                   d.firstName AS doctorFirstName, d.lastName AS doctorLastName
+            FROM Reports r
+            JOIN patient p ON r.patientID = p.USERID
+            JOIN doctor d ON r.doctorID = d.USERID
+            WHERE p.clinicID = %s AND (
+                CAST(r.reportID AS CHAR) LIKE %s
+                OR r.reportDate LIKE %s
+                OR r.expiryDate LIKE %s
+                OR p.firstName LIKE %s
+                OR p.lastName LIKE %s
+                OR d.firstName LIKE %s
+                OR d.lastName LIKE %s
+            )
+            {order_clause}
+        """
+        cursor.execute(query_sql, (clinic_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+    
+    reports = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    # Convert dates to datetime if they're strings
+    for r in reports:
+        if isinstance(r['reportDate'], str):
+            try:
+                r['reportDate'] = datetime.strptime(r['reportDate'], '%Y-%m-%d')
+            except Exception:
+                pass
+        if isinstance(r.get('expiryDate'), str):
+            try:
+                r['expiryDate'] = datetime.strptime(r['expiryDate'], '%Y-%m-%d')
+            except Exception:
+                pass
+    
+    return render_template('/clinic_admin/ManageReports.html', reports=reports, filter_by=filter_by, query=query)
 
 
 # Clinic admin: list / search / filter accounts
