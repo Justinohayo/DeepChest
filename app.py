@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
 import mysql.connector
 import webbrowser
 import calendar
@@ -1406,55 +1406,6 @@ def predict2(xray_bytes):
         "gradcam_png": gradcam_png,
     }
 
-def display_gradcam(img_path, model, last_conv_layer_name="last_conv"):
-    #img array
-    img_array = preprocess_input(img_path)
-    
-    # Load the original image
-    img = keras.utils.load_img(img_path, target_size=(224,224))
-    img = keras.utils.img_to_array(img).astype("uint8")
-
-    # Rescale heatmap to a range 0-255
-    heatmap, preds = make_gradcam_heatmap(img_array, model, last_conv_layer_name)
-
-  # Predicted class + probability
-    pred_idx = int(np.argmax(preds))
-    pred_name = class_names[pred_idx]
-    pred_prob = float(preds[pred_idx]) * 100
-
-    # colormap
-    heatmap_resized = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
-    heatmap_color = cv2.applyColorMap(
-        np.uint8(255 * heatmap_resized),
-        cv2.COLORMAP_JET
-    )
-    overlay = cv2.addWeighted(img, 0.6, heatmap_color, 0.4, 0)
-    #show
-    plt.figure(figsize=(6, 6))
-    plt.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
-    plt.axis("off")
-    plt.title(f"{pred_name} ({pred_prob:.1f}%)")
-    plt.show()
-
-def predict(file):
-    img = load_img(file, target_size=(224,224))
-    img_array = preprocess_input(file)
-
-    heatmap, preds = make_gradcam_heatmap(img_array, model, last_conv_layer_name="last_conv")
-
-    #interpreting the predictions
-    predicted_idx = int(np.argmax(preds))
-    predicted_label = class_names[predicted_idx]
-    predicted_prob = float(preds[predicted_idx]*100)
-
-    #Probs for website 
-    probs = list(zip(class_names, preds))
-
-    #Grad-CAM
-    grad_cam = display_gradcam(file, model, last_conv_layer_name="last_conv")
-
-    return grad_cam, predicted_label, predicted_prob, probs
-
 #get x-ray bytes
 def get_xray(xray_id):
     conn = mysql.connector.connect(**db_config)
@@ -1528,35 +1479,44 @@ def doctor_report_generation():
     cursor = conn.cursor()
     report_date = datetime.now()
 
+    #get patient
     cursor.execute("SELECT USERID FROM patient WHERE CONCAT(firstName, ' ', lastName) = %s", (patient_name,))
     patient_id = cursor.fetchone()[0]
-    cursor.execute("SELECT symptoms FROM appointments WHERE patientID = %s", (patient_id,))
+
+    #get symptoms
+    cursor.execute("SELECT symptoms FROM appointments WHERE patientID = %s ORDER BY appointment_date DESC, appointment_time DESC LIMIT 1", (patient_id,))
     patient_symptoms = cursor.fetchone()[0] or 'N/A'
     
-    cursor.execute("SELECT xrayID FROM xrays WHERE patientID = %s AND date ~~ %s", (patient_id, report_date))
-    xray_id = cursor.fetchone()[0]
-    cursor.execute("SELECT files FROM xrays WHERE xrayID = %s", (xray_id,))
-    file = cursor.fetchone()[0]
+    #get x-ray
+    cursor.execute("SELECT files FROM xrays WHERE patientID = %s ORDER BY date DESC LIMIT 1", (patient_id,))
+    #xray = cursor.fetchone()[0]
+    #cursor.execute("SELECT files FROM xrays WHERE xrayID = %s", (xray_id,))
+    file = cursor.fetchone()
+    xray_bytes = file[0]
 
     report_pdf = generate_report(
         patient={'firstName': patient_name.split(' ')[0], 'lastName': patient_name.split(' ')[1], 'symptom': patient_symptoms},
         doctor_note=doctor_note,
-        xray_bytes=file
+        xray_bytes=xray_bytes
     )
+    #save report to database
     cursor.execute("INSERT INTO Reports (patientID, doctorID, reportDate, expiryDate, files) VALUES (%s, %s, %s, %s, %s)",
                        (patient_id, doctor_id, report_date, report_expiry_date, report_pdf))
     cursor.execute("SELECT reportID from Reports WHERE patientID = %s AND doctorID = %s AND reportDate = %s", (patient_id, doctor_id, report_date))
     report_id = cursor.fetchone()[0]
 
-    cursor.execute("SELECT files FROM Reports WHERE reportID = %s", (report_id,))
-    report_pdf2 = cursor.fetchone()[0]
+   # cursor.execute("SELECT files FROM Reports WHERE reportID = %s", (report_id,))
+   # report_pdf2 = cursor.fetchone()[0]
     cursor.close()
     conn.close()
-    webbrowser.open_new_tab(report_pdf2)
 
-    return render_template(
-        'doctor/doctor_ai_diagnosis.html',
-        username=session.get('username'),
+    #open report
+    filename = f"report_{patient_id}_{report_date.strftime('%Y%m%d_%H%M%S')}.pdf"
+    return send_file(
+        BytesIO(report_pdf),
+        mimetype='application/pdf',
+        as_attachment=False,
+        download_name=filename
         )
 
 
