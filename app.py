@@ -296,6 +296,50 @@ def patient_edit_appointments():
         return redirect(url_for('patient_appointments'))
     return redirect(url_for('patient_manage_appointment', appointment_id=appointment_id))
 
+# Handle appointment cancellation
+@app.route('/patient/cancel-appointment', methods=['POST'])
+def patient_cancel_appointment():
+    if session.get('userType') != 'patient':
+        return redirect(url_for('login'))
+    
+    appointment_id = request.form.get('appointment_id')
+    user_id = session.get('user_id')
+    
+    if not appointment_id:
+        flash('No appointment selected.', 'error')
+        return redirect(url_for('patient_appointments'))
+    
+    try:
+        appointment_id = int(appointment_id)
+    except ValueError:
+        flash('Invalid appointment ID.', 'error')
+        return redirect(url_for('patient_appointments'))
+    
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+    
+    # Verify the appointment belongs to this patient before deleting
+    cursor.execute("SELECT apptID FROM appointments WHERE apptID = %s AND patientID = %s", (appointment_id, user_id))
+    appointment = cursor.fetchone()
+    
+    if not appointment:
+        flash('Appointment not found or you do not have permission to cancel it.', 'error')
+        cursor.close()
+        conn.close()
+        return redirect(url_for('patient_appointments'))
+    
+    try:
+        cursor.execute("DELETE FROM appointments WHERE apptID = %s", (appointment_id,))
+        conn.commit()
+        flash('Appointment cancelled successfully.', 'success')
+    except mysql.connector.Error as e:
+        flash(f'Error cancelling appointment: {e}', 'error')
+    finally:
+        cursor.close()
+        conn.close()
+    
+    return redirect(url_for('patient_appointments'))
+
 # Show the manage/edit appointment page
 @app.route('/patient/manage-appointment/<int:appointment_id>', methods=['GET', 'POST'])
 def patient_manage_appointment(appointment_id):
@@ -1176,6 +1220,50 @@ def doctor_reports():
     )
 
 
+@app.route('/view_report/<int:report_id>')
+def view_report(report_id):
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+    
+    user_type = session.get('userType')
+    user_id = session.get('user_id')
+    
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    
+    # Fetch report based on user type
+    if user_type == 'patient':
+        cursor.execute("SELECT files FROM Reports WHERE reportID = %s AND patientID = %s", (report_id, user_id))
+    elif user_type == 'doctor':
+        cursor.execute("SELECT files FROM Reports WHERE reportID = %s AND doctorID = %s", (report_id, user_id))
+    elif user_type == 'clinicadmin':
+        clinic_id = session.get('clinicID')
+        cursor.execute("""
+            SELECT r.files FROM Reports r
+            JOIN patient p ON r.patientID = p.USERID
+            WHERE r.reportID = %s AND p.clinicID = %s
+        """, (report_id, clinic_id))
+    else:
+        cursor.close()
+        conn.close()
+        return "Unauthorized", 403
+    
+    report = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    if not report or not report['files']:
+        return "Report not found", 404
+    
+    pdf_bytes = report['files']
+    
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=False,
+        download_name=f"report_{report_id}.pdf"
+    )
+
 @app.route('/doctor/search_reports', methods=['GET'])
 def doctor_search_reports():
     if session.get('userType') != 'doctor':
@@ -1440,7 +1528,7 @@ def get_xray(xray_id):
         return None
     return row[0]
 
-def generate_report(patient, doctor_note, xray_bytes, ai_prediction=None, pdf_title=None):
+def generate_report(patient, doctor_note, xray_bytes, ai_prediction=None, pdf_title=None, clinic=None):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     page_width, page_height = A4
@@ -1453,8 +1541,20 @@ def generate_report(patient, doctor_note, xray_bytes, ai_prediction=None, pdf_ti
     c.setFont("Helvetica-Bold", 20)
     c.drawCentredString(page_width / 2, page_height - 60, "Chest X-Ray Diagnostic Report")
 
+    # Clinic information (if provided)
+    y = page_height - 85
+    if clinic:
+        c.setFont("Helvetica", 11)
+        clinic_info = f"{clinic['clinicName']}"
+        c.drawCentredString(page_width / 2, y, clinic_info)
+        y -= 12
+        address_info = f"{clinic['city']}, {clinic['province']} {clinic['postalCode']}"
+        c.drawCentredString(page_width / 2, y, address_info)
+        y -= 18
+    else:
+        y -= 15
+
     #patient info
-    y = page_height - 100
     line_h = 14
 
     def draw_meta(label, value):
@@ -1556,12 +1656,27 @@ def doctor_report_generation():
     report_date = datetime.now()
 
     #get patient
-    cursor.execute("SELECT USERID FROM patient WHERE CONCAT(firstName, ' ', lastName) = %s", (patient_name,))
-    patient_id = cursor.fetchone()[0]
+    cursor.execute("SELECT USERID, clinicID FROM patient WHERE CONCAT(firstName, ' ', lastName) = %s", (patient_name,))
+    patient_row = cursor.fetchone()
+    patient_id = patient_row[0]
+    clinic_id = patient_row[1]
 
     #get symptoms
     cursor.execute("SELECT symptoms FROM appointments WHERE patientID = %s ORDER BY appointment_date DESC, appointment_time DESC LIMIT 1", (patient_id,))
     patient_symptoms = cursor.fetchone()[0] or 'N/A'
+    
+    #get clinic information
+    clinic = None
+    if clinic_id:
+        cursor.execute("SELECT clinicName, city, province, postalCode FROM clinic WHERE clinicID = %s", (clinic_id,))
+        clinic_row = cursor.fetchone()
+        if clinic_row:
+            clinic = {
+                'clinicName': clinic_row[0],
+                'city': clinic_row[1],
+                'province': clinic_row[2],
+                'postalCode': clinic_row[3]
+            }
     
     #get x-ray
     cursor.execute("SELECT files FROM xrays WHERE patientID = %s ORDER BY date DESC LIMIT 1", (patient_id,))
@@ -1582,16 +1697,17 @@ def doctor_report_generation():
         doctor_note=doctor_note,
         xray_bytes=xray_bytes,
         ai_prediction=ai_prediction,
-        pdf_title=f"Diagnostic Report: {patient_name} {report_date.strftime('%Y-%m-%d')}"
+        pdf_title=f"Diagnostic Report: {patient_name} {report_date.strftime('%Y-%m-%d')}",
+        clinic=clinic
     )
     #save report to database
     cursor.execute("INSERT INTO Reports (patientID, doctorID, reportDate, expiryDate, files) VALUES (%s, %s, %s, %s, %s)",
                        (patient_id, doctor_id, report_date, report_expiry_date, report_pdf))
-    #cursor.execute("SELECT reportID from Reports WHERE patientID = %s AND doctorID = %s AND reportDate = %s", (patient_id, doctor_id, report_date))
-    #report_id = cursor.fetchone()[0]
-
-   # cursor.execute("SELECT files FROM Reports WHERE reportID = %s", (report_id,))
-   # report_pdf2 = cursor.fetchone()[0]
+    conn.commit()  # Commit the transaction to save the report
+    
+    # Get the reportID of the newly inserted report
+    report_id = cursor.lastrowid
+    
     cursor.close()
     conn.close()
 

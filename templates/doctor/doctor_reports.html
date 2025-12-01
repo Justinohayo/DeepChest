@@ -71,8 +71,8 @@
             <td>{{ report.firstName }} {{ report.lastName }}</td>
             <td>
               {% if report.files %}
-                <a href="/static/uploads/{{ report.files }}" class="file-link" target="_blank">
-                  {{ report.files }}
+                <a href="{{ url_for('view_report', report_id=report.reportID) }}" class="file-link" target="_blank">
+                  View Report
                 </a>
               {% else %}
                 <em>No file uploaded</em>

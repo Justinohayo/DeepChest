@@ -2,7 +2,7 @@
         Creates a Table for clinic that includes clinicID, city, province, and postalCode
         */
 CREATE TABLE `clinic` (
- `clinicID` int(255) AUTO_INCREMENT NOT NUll UNIQUE,
+ `clinicID` int(25) AUTO_INCREMENT NOT NUll UNIQUE,
  `clinicName` varchar(255) NOT NULL,
  `address` varchar(15) NOT NULL,
   `city` varchar(15) NOT NULL,
@@ -120,11 +120,6 @@ CREATE TABLE `Reports` (
    FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
- -- adds data to the reports table
-INSERT INTO `Reports` (`patientID`, `doctorID`, `reportDate`,`expiryDate`, `files`) VALUES
-(111, 222, '2025-11-11','2025-12-11' ,'report1.pdf'),
-(112, 222, '2025-11-12','2025-12-11' ,'report2.pdf'),
-(111, 222, '2025-11-14','2025-12-11', 'report3.pdf');
 
 /*
         Creates a Table for clinic admins that includes USERID and clinicID
