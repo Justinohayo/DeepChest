@@ -6,12 +6,21 @@
     <!-- Browser Tab Title -->
     <title>Login - DeepChest</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/logostyle.css" />
   </head>
   <!-- Main body content, fields for username and password to log users in -->
   <body>
-    {% extends "navigationbase.html" %}
-    <!-- Main body content -->
-    {% block title %}DeepChest - Home{% endblock %}
+   <nav>
+      <div class="logo">
+        <a href="/"
+          ><img
+            src="{{ url_for('static', filename='logo_DeepChest.png') }}"
+            class="logo-img"
+        /></a>
+        <div class="logo-text">DeepChest</div>
+      </div>
+    
+    </nav>
 
     {% block content %}
     <!-- Account Created message handling -->

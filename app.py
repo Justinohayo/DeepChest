@@ -111,13 +111,14 @@ def clinic_signup():
         password = request.form.get('password')
         email = request.form.get('email')
         phone = request.form.get('phoneNumber')
+        clinicName = request.form.get('clinicName')
         address = request.form.get('address')
         city = request.form.get('city')
         province = request.form.get('province')
         postal_code = request.form.get('postalCode')
         
         # Validate required fields
-        if not all([username, password, email, phone, address, city, province, postal_code]):
+        if not all([username, password, email, phone, clinicName, address, city, province, postal_code]):
             flash('All fields are required.', 'danger')
             return render_template('clinic_signup.html')
         
@@ -135,9 +136,9 @@ def clinic_signup():
             
             # Insert into clinic table
             cursor.execute("""
-                INSERT INTO clinic (address, city, province, postalCode) 
-                VALUES (%s, %s, %s, %s)
-            """, (address, city, province, postal_code))
+                INSERT INTO clinic (clinicName,address, city, province, postalCode) 
+                VALUES (%s,%s, %s, %s, %s)
+            """, (clinicName,address, city, province, postal_code))
             
             # Get the newly created clinicID
             clinic_id = cursor.lastrowid

@@ -3,6 +3,7 @@
         */
 CREATE TABLE `clinic` (
  `clinicID` int(255) AUTO_INCREMENT NOT NUll UNIQUE,
+ `clinicName` varchar(255) NOT NULL,
  `address` varchar(15) NOT NULL,
   `city` varchar(15) NOT NULL,
    `province` varchar(15) NOT NULL,
@@ -11,9 +12,9 @@ CREATE TABLE `clinic` (
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data into the clinic table
-INSERT INTO `clinic` (`clinicID`,`address`,`city`,`province`,`postalCode`) VALUES
-('1000','12345 82 Ave','Surrey','BC','V3N0L3'),
-('2000','1354 162 ST','Vancouver','BC','V5K0A1');
+INSERT INTO `clinic` (`clinicID`,`clinicName`,`address`,`city`,`province`,`postalCode`) VALUES
+('1000','Westbrook CLinic','12345 82 Ave','Surrey','BC','V3N0L3'),
+('2000','NorthEast Clinic','1354 162 ST','Vancouver','BC','V5K0A1');
 /*
         Creates a Table for login that includes USERID, username, password, userType, and clinicID
         */

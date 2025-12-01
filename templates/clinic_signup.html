@@ -7,11 +7,20 @@
     <title>Clinic Sign Up - DeepChest</title>
     <!-- Linking Stylesheet -->
     <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/logostyle.css" />
   </head>
   <body>
-    {% extends "navigationbase.html" %}
-    <!-- Main body content -->
-    {% block title %}DeepChest - Home{% endblock %}
+    <nav>
+      <div class="logo">
+        <a href="/"
+          ><img
+            src="{{ url_for('static', filename='logo_DeepChest.png') }}"
+            class="logo-img"
+        /></a>
+        <div class="logo-text">DeepChest</div>
+      </div>
+    
+    </nav>
 
     {% block content %}
     <!-- Main body content: form for signing up -->
@@ -27,6 +36,7 @@
           placeholder="Phone Number"
           required
         />
+        <input type="text" name="clinicName" placeholder="Clinic Name" required />
         <input type="text" name="address" placeholder="Address" required />
         <input type="text" name="city" placeholder="City" required />
         <input type="text" name="province" placeholder="Province" required />
