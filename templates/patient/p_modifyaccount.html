@@ -22,7 +22,6 @@
         <a href="/patient/appointments">Appointments</a>
          <!--<a href="/patient/reports">My Reports</a> -->
         <a href="/patient/messages">Message</a>
-        <a href="/patient/notifications">Notifications</a>
         <div class="dropdown">
           <button class="dropbtn">Account &#9662;</button>
           <div class="dropdown-content">
@@ -116,6 +115,20 @@
               value="{{ patient.insurance }}"
               required
             />
+            <!-- Notification opt-in -->
+            <div style="grid-column: 1 / -1; padding: 10px 0;">
+              <label style="font-weight: bold; margin-bottom: 10px; display: block; text-align: center;">Enable Notifications:</label>
+              <div style="display: flex; gap: 20px; justify-content: center;">
+                <label style="cursor: pointer;">
+                  <input type="radio" name="notifications_enabled" value="1" {% if patient.notifications_enabled == 1 %}checked{% endif %} required />
+                  Yes
+                </label>
+                <label style="cursor: pointer;">
+                  <input type="radio" name="notifications_enabled" value="0" {% if patient.notifications_enabled == 0 %}checked{% endif %} required />
+                  No
+                </label>
+              </div>
+            </div>
             <!-- Submit button -->
             <button type="submit" class="signup-btn">Update Account</button>
           </form>

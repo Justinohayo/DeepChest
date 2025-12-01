@@ -77,6 +77,20 @@
           placeholder="Insurance Provider"
           required
         />
+        <!-- Notification opt-in -->
+        <div style="grid-column: 1 / -1; padding: 10px 0;">
+          <label style="font-weight: bold; margin-bottom: 10px; display: block; text-align: center;">Enable Notifications:</label>
+          <div style="display: flex; gap: 20px; justify-content: center;">
+            <label style="cursor: pointer;">
+              <input type="radio" name="notifications_enabled" value="1" required />
+              Yes
+            </label>
+            <label style="cursor: pointer;">
+              <input type="radio" name="notifications_enabled" value="0" required />
+              No
+            </label>
+          </div>
+        </div>
         <!-- Submit button -->
         <button type="submit" class="signup-btn">Sign Up</button>
       </form>

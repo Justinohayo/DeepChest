@@ -71,7 +71,6 @@ CREATE TABLE `patient`(
     `doctorID`int(255),
     `childID`varchar(15) DEFAULT NULL,
      `clinicID` int(255) NOT NULL,
-     `email_opt_in` BOOLEAN NOT NULL DEFAULT TRUE,
      `notifications_enabled` BOOLEAN DEFAULT FALSE,
      `notification_email` varchar(255),
     PRIMARY KEY (USERID),
@@ -81,9 +80,9 @@ CREATE TABLE `patient`(
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the patient table
-INSERT INTO `patient` (`firstName`, `lastName`, `age`,`dateofbirth`, `USERID`, `address`, `city`, `province`, `postalCode`, `phone`, `email`,`insurance`,`doctorID`,`childID`,`clinicID`,`email_opt_in`,`notifications_enabled`,`notification_email`) VALUES
-('Theisen', 'Reddy', '23','2001-08-25', '111', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'treddy@example.com','Blue Cross','222','','1000','1', '1','theisen.reddy@gmail.com'),
-('Example', 'Person', '23','2001-08-25', '112', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'example@example.com','Blue Cross','222','','1000','1', '0',NULL);
+INSERT INTO `patient` (`firstName`, `lastName`, `age`,`dateofbirth`, `USERID`, `address`, `city`, `province`, `postalCode`, `phone`, `email`,`insurance`,`doctorID`,`childID`,`clinicID`,`notifications_enabled`,`notification_email`) VALUES
+('Theisen', 'Reddy', '23','2001-08-25', '111', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'treddy@example.com','Blue Cross','222','','1000', '1','theisen.reddy@gmail.com'),
+('Example', 'Person', '23','2001-08-25', '112', 'Apt 12 16325 123 St', 'Surrey', 'BC', 'V3N0L3','(604) 545-8690', 'example@example.com','Blue Cross','222','','1000','0',NULL);
 
 /*
         Creates a Table for appointments that includes apptID, patientID, appointment_date, appointment_time, doctorID, and symptoms

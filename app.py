@@ -195,6 +195,8 @@ def signup():
         province = request.form.get('province')
         postalCode = request.form.get('postalCode')
         insurance = request.form.get('insurance')
+        notifications_enabled = request.form.get('notifications_enabled', '0')
+        notification_email = email if notifications_enabled == '1' else None
         username = email  # Or generate a username as needed
         childID = None  # Assuming childID is optional or can be set later
 
@@ -216,8 +218,8 @@ def signup():
         # Insert into patient table (if you have one)
         # Uncomment and adjust the following if you have a patient table:
         cursor.execute(
-           "INSERT INTO `patient` (`firstName`, `lastName`,`dateofbirth`, `USERID`, `address`, `city`, `province`, `postalCode`, `phone`, `email`,`insurance`,`doctorID`,`childID`,`clinicID`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s,%s,%s)",
-            (firstName, lastName, birthday, user_id, address, city, province, postalCode, phoneNumber, email, insurance, doctorID, childID, clinicID)
+           "INSERT INTO `patient` (`firstName`, `lastName`,`dateofbirth`, `USERID`, `address`, `city`, `province`, `postalCode`, `phone`, `email`,`insurance`,`doctorID`,`childID`,`clinicID`,`notifications_enabled`,`notification_email`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s,%s,%s,%s,%s)",
+            (firstName, lastName, birthday, user_id, address, city, province, postalCode, phoneNumber, email, insurance, doctorID, childID, clinicID, notifications_enabled, notification_email)
          )
 
         conn.commit()
@@ -737,67 +739,6 @@ def patient_messages():
             pass
         return render_template('patient/messages.html', doctors=[])
 
-# Patient Notifications Page (GET: show form, POST: opt-in)
-@app.route('/patient/notifications', methods=['GET', 'POST'])
-def patient_notifications():
-    if session.get('userType') != 'patient':
-        return redirect(url_for('login'))
-
-    # Automatically delete expired notifications
-    expired_count = delete_expired_notifications()
-    if expired_count > 0:
-        flash(f"Automatically removed {expired_count} expired notification(s).", "info")
-
-    user_id = session.get('user_id')
-
-    if request.method == 'POST':
-        email = (request.form.get('email') or '').strip()
-        enable = request.form.get('enable') == 'on'   # checkbox
-
-        if enable and not email:
-            flash("Please enter an email to enable notifications.", "error")
-            return redirect(url_for('patient_notifications'))
-
-        try:
-            conn = mysql.connector.connect(**db_config)
-            cursor = conn.cursor()
-
-            cursor.execute("""
-                UPDATE patient
-                SET notifications_enabled = %s,
-                    notification_email = %s
-                WHERE USERID = %s
-            """, (enable, email if enable else None, user_id))
-
-            conn.commit()
-            cursor.close()
-            conn.close()
-
-            flash("Notification settings updated.", "success")
-            return redirect(url_for('patient_notifications'))
-
-        except Exception as e:
-            flash("Database error: " + str(e), "error")
-            return redirect(url_for('patient_notifications'))
-
-    # GET request → show current settings
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT notifications_enabled, notification_email FROM patient WHERE USERID = %s", (user_id,))
-    row = cursor.fetchone()
-    cursor.close()
-    conn.close()
-
-    return render_template(
-        'patient/notifications.html',
-        enabled=row["notifications_enabled"],
-        email=row["notification_email"]
-    )
-
-
-    # GET
-   # return render_template('patient/notifications.html', user_id=user_id)
-
 
 # Patient Manage Account Page (GET: pre-fill, POST: update)
 @app.route('/patient/account', methods=['GET', 'POST'])
@@ -820,10 +761,12 @@ def patient_account():
         province = request.form.get('province')
         postalCode = request.form.get('postalCode')
         insurance = request.form.get('insurance')
+        notifications_enabled = request.form.get('notifications_enabled', '0')
+        notification_email = email if notifications_enabled == '1' else None
         # Update patient table
         cursor.execute("""
-            UPDATE patient SET firstName=%s, lastName=%s, dateofbirth=%s, address=%s, city=%s, province=%s, postalCode=%s, phone=%s, email=%s, insurance=%s WHERE USERID=%s
-        """, (firstName, lastName, birthday, address, city, province, postalCode, phoneNumber, email, insurance, user_id))
+            UPDATE patient SET firstName=%s, lastName=%s, dateofbirth=%s, address=%s, city=%s, province=%s, postalCode=%s, phone=%s, email=%s, insurance=%s, notifications_enabled=%s, notification_email=%s WHERE USERID=%s
+        """, (firstName, lastName, birthday, address, city, province, postalCode, phoneNumber, email, insurance, notifications_enabled, notification_email, user_id))
         # Update login table (password and email/username)
         cursor.execute("""
             UPDATE login SET username=%s, password=%s WHERE USERID=%s
