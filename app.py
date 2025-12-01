@@ -31,7 +31,7 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 db_config = {
      'host': 'localhost',
     'user': 'root',
-    'password': '12345',
+    'password': 'test1234',
     'database': 'DeepChest'
 }
 
@@ -1352,7 +1352,7 @@ def make_gradcam_heatmap(img_array):
         
         preds = preds[0]             
         top_index = tf.argmax(preds)  
-        class_channel = preds[top_index]  
+        class_channel = preds[top_index]
 
     # This is the gradient of the output neuron (top predicted or chosen)
     grads = tape.gradient(class_channel, conv_outputs)[0]
@@ -1366,7 +1366,7 @@ def make_gradcam_heatmap(img_array):
     heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
     heatmap = tf.squeeze(heatmap)
 
-   #normalize the heatmap 0-1
+    # normalize the heatmap 0-1
     heatmap = tf.maximum(heatmap, 0) / tf.math.reduce_max(heatmap)
     return heatmap.numpy(), preds.numpy()
 
@@ -1496,7 +1496,7 @@ def get_xray(xray_id):
         return None
     return row[0]
 
-def generate_report(patient, doctor_note, xray_bytes, pdf_title=None):
+def generate_report(patient, doctor_note, xray_bytes, ai_prediction=None, pdf_title=None):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     page_width, page_height = A4
@@ -1531,6 +1531,27 @@ def generate_report(patient, doctor_note, xray_bytes, pdf_title=None):
     c.setLineWidth(0.5)
     c.line(50, y, page_width - 50, y)
     y -= 18
+
+    # AI Diagnosis section
+    if ai_prediction:
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y, "AI-Assisted Diagnosis:")
+        y -= 16
+        c.setFont("Helvetica", 11)
+        c.drawString(50, y, f"Predicted Condition: {ai_prediction['label']}")
+        y -= 14
+        c.drawString(50, y, f"Confidence: {ai_prediction['prob']:.1f}%")
+        y -= 14
+        c.setFont("Helvetica", 11)
+        c.drawString(50, y, "All Probabilities:")
+        y -= 12
+        for condition, prob in ai_prediction['probs']:
+            c.drawString(70, y, f"{condition}: {prob:.1f}%")
+            y -= 12
+        y -= 6
+        c.setLineWidth(0.5)
+        c.line(50, y, page_width - 50, y)
+        y -= 18
 
     # Doctor notes
     c.setFont("Helvetica-Bold", 12)
@@ -1605,10 +1626,18 @@ def doctor_report_generation():
     file = cursor.fetchone()
     xray_bytes = file[0]
 
+    # Generate AI prediction
+    ai_prediction = None
+    try:
+        ai_prediction = predict2(xray_bytes)
+    except Exception as e:
+        print(f"Error generating AI prediction: {e}")
+
     report_pdf = generate_report(
         patient={'firstName': patient_name.split(' ')[0], 'lastName': patient_name.split(' ')[1], 'symptom': patient_symptoms},
         doctor_note=doctor_note,
         xray_bytes=xray_bytes,
+        ai_prediction=ai_prediction,
         pdf_title=f"Diagnostic Report: {patient_name} {report_date.strftime('%Y-%m-%d')}"
     )
     #save report to database
