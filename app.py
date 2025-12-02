@@ -2123,13 +2123,6 @@ def admin_delete_appointment():
     
     return redirect(url_for('admin_appointments'))
 
-@app.route('/admin/manage_accounts')
-def admin_manageaccount():
-    if session.get('userType') != 'clinicadmin':
-         return redirect(url_for('login'))
-    return render_template('/clinic_admin/ManageAccount.html',username=session.get('username'))
-
-
 # Clinic admin: manage the clinic metadata (city/province/postalCode)
 @app.route('/admin/manage_clinic', methods=['GET', 'POST'])
 def clinic_manage_clinic():
