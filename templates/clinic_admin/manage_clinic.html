@@ -47,6 +47,9 @@
             <label>Clinic ID</label>
             <input type="text" name="clinicID" value="{{ clinic.clinicID }}" readonly />
 
+            <label>Clinic Email</label>
+            <input type="email" name="clinicEmail" value="{{ clinic.email or '' }}" required />
+
             <label>City</label>
             <input type="text" name="city" value="{{ clinic.city or '' }}" required />
 

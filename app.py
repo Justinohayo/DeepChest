@@ -112,13 +112,14 @@ def clinic_signup():
         email = request.form.get('email')
         phone = request.form.get('phoneNumber')
         clinicName = request.form.get('clinicName')
+        clinicEmail = request.form.get('clinicEmail')
         address = request.form.get('address')
         city = request.form.get('city')
         province = request.form.get('province')
         postal_code = request.form.get('postalCode')
         
         # Validate required fields
-        if not all([username, password, email, phone, clinicName, address, city, province, postal_code]):
+        if not all([username, password, email, phone, clinicName, clinicEmail, address, city, province, postal_code]):
             flash('All fields are required.', 'danger')
             return render_template('clinic_signup.html')
         
@@ -136,9 +137,9 @@ def clinic_signup():
             
             # Insert into clinic table
             cursor.execute("""
-                INSERT INTO clinic (clinicName,address, city, province, postalCode) 
-                VALUES (%s,%s, %s, %s, %s)
-            """, (clinicName,address, city, province, postal_code))
+                INSERT INTO clinic (clinicName, address, city, province, postalCode) 
+                VALUES (%s, %s, %s, %s, %s)
+            """, (clinicName, address, city, province, postal_code))
             
             # Get the newly created clinicID
             clinic_id = cursor.lastrowid
@@ -154,9 +155,9 @@ def clinic_signup():
             
             # Insert into clinicadmin table
             cursor.execute("""
-                INSERT INTO clinicadmin (USERID, clinicID) 
-                VALUES (%s, %s)
-            """, (user_id, clinic_id))
+                INSERT INTO clinicadmin (USERID, clinicID, email) 
+                VALUES (%s, %s,%s)
+            """, (user_id, clinic_id,clinicEmail))
             
             conn.commit()
             flash('Clinic registered successfully! You can now log in.', 'success')
@@ -2144,12 +2145,14 @@ def clinic_manage_clinic():
     cursor = conn.cursor(dictionary=True)
 
     if request.method == 'POST':
+        clinic_email = (request.form.get('clinicEmail') or '').strip()
         city = (request.form.get('city') or '').strip()
         province = (request.form.get('province') or '').strip()
         postal = (request.form.get('postalCode') or '').strip()
 
         try:
             cursor.execute("UPDATE clinic SET city=%s, province=%s, postalCode=%s WHERE clinicID = %s", (city, province, postal, clinic_id))
+            cursor.execute("UPDATE clinicadmin SET email=%s WHERE clinicID = %s", (clinic_email, clinic_id))
             conn.commit()
             flash('Clinic updated successfully.', 'success')
         except Exception as e:
@@ -2160,8 +2163,13 @@ def clinic_manage_clinic():
             conn.close()
         return redirect(url_for('clinic_manage_clinic'))
 
-    # GET
-    cursor.execute("SELECT * FROM clinic WHERE clinicID = %s", (clinic_id,))
+    # GET - Join clinic and clinicadmin to get both clinic info and email
+    cursor.execute("""
+        SELECT c.*, ca.email 
+        FROM clinic c
+        LEFT JOIN clinicadmin ca ON c.clinicID = ca.clinicID
+        WHERE c.clinicID = %s
+    """, (clinic_id,))
     clinic = cursor.fetchone()
     cursor.close()
     conn.close()

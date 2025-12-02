@@ -127,13 +127,14 @@ CREATE TABLE `Reports` (
 CREATE TABLE `clinicadmin` (
   `USERID` int(255) NOT NULL,
  `clinicID` int(255) NOT NULL,
+ `email` varchar(50) NOT NULL,
     FOREIGN KEY (USERID) REFERENCES login(USERID),
      FOREIGN KEY (clinicID) REFERENCES clinic(clinicID)
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the clinicadmin table
-INSERT INTO `clinicadmin` (`USERID`,`clinicID`) VALUES
-('333','1000');
+INSERT INTO `clinicadmin` (`USERID`,`clinicID`,`email`) VALUES
+('333','1000','adminemail@example.com');
 
 /*
         Creates a Table for child links that includes linkID, childID, and parentID
