@@ -1633,7 +1633,7 @@ def predict(file):
 def get_xray(xray_id):
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
-    cursor.execute("SELECT files from xrays where xrayID = %s", (xray_id,))
+    cursor.execute("SELECT files from Xrays where xrayID = %s", (xray_id,))
     row = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -1745,7 +1745,7 @@ def doctor_report_generation():
     patient_symptoms = cursor.fetchone()[0] or 'N/A'
     
     #get x-ray
-    cursor.execute("SELECT files FROM xrays WHERE patientID = %s ORDER BY date DESC LIMIT 1", (patient_id,))
+    cursor.execute("SELECT files FROM Xrays WHERE patientID = %s ORDER BY date DESC LIMIT 1", (patient_id,))
     #xray = cursor.fetchone()[0]
     #cursor.execute("SELECT files FROM xrays WHERE xrayID = %s", (xray_id,))
     file = cursor.fetchone()
@@ -1812,7 +1812,7 @@ def doctor_ai_diagnosis():
 
             else:
                 cursor.execute("""
-                           INSERT INTO xrays (patientID, doctorID, date, expires_at, files) VALUES (%s, %s, %s, %s, %s)""", 
+                           INSERT INTO Xrays (patientID, doctorID, date, expires_at, files) VALUES (%s, %s, %s, %s, %s)""", 
                            (patient_id,doctor_id, datetime.now(),expiry_date, xray_bytes))
                 conn.commit()
                 cursor.close()
