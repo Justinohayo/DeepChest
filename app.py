@@ -29,10 +29,10 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 
 # Database connection config
 db_config = {
-    'host': 'mysql-database.cjogeuu2gnn5.ca-central-1.rds.amazonaws.com',
-    'user': 'admin',
-    'password': 'AdminIPA',
-    'database': 'DeepChest_DB'
+     'host': 'localhost',
+    'user': 'root',
+    'password': 'test1234',
+    'database': 'DeepChest'
 }
 
 #SES helper
@@ -345,6 +345,8 @@ def signup():
         province = request.form.get('province')
         postalCode = request.form.get('postalCode')
         insurance = request.form.get('insurance')
+        notifications_enabled = request.form.get('notifications_enabled', '0')
+        notification_email = email if notifications_enabled == '1' else None
         username = email  
         childID = None  
 
