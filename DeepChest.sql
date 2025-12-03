@@ -155,7 +155,7 @@ CREATE TABLE `child` (
  `parentID` int(255) NOT NULL,
 	PRIMARY KEY (childID),
     FOREIGN KEY (parentID) REFERENCES patient(USERID),
-	FOREIGN KEY (linkID) REFERENCES childlink(linkID)
+	FOREIGN KEY (linkID) REFERENCES childLink(linkID)
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 /*
