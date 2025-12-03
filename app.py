@@ -1610,7 +1610,7 @@ def generate_report(patient, doctor_note, xray_bytes, ai_prediction=None, pdf_ti
     c.drawText(text)
 
     # Reserve vertical space for notes (avoid overlapping the X-ray)
-    y_for_image = page_height * 0.35  # somewhere around middle of page
+    y_for_image = page_height * 0.20  # lower position on page
 
     # ===== X-ray image =====
     try:
@@ -1619,7 +1619,7 @@ def generate_report(patient, doctor_note, xray_bytes, ai_prediction=None, pdf_ti
 
         img_w, img_h = xray_img.getSize()
         max_w = page_width * 0.45
-        max_h = page_height * 0.35
+        max_h = page_height * 0.30
         scale = min(max_w / img_w, max_h / img_h)
 
         draw_w = img_w * scale
