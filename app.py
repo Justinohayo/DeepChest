@@ -19,7 +19,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from io import BytesIO
 from datetime import datetime
-
+import boto3
 import os
 import base64
 
@@ -29,12 +29,162 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 
 # Database connection config
 db_config = {
-     'host': 'localhost',
-    'user': 'root',
-    'password': 'test1234',
-    'database': 'DeepChest'
+    'host': 'mysql-database.cjogeuu2gnn5.ca-central-1.rds.amazonaws.com',
+    'user': 'admin',
+    'password': 'AdminIPA',
+    'database': 'DeepChest_DB'
 }
 
+#SES helper
+AWS_REGION = os.getenv("AWS_REGION", "ca-central-1")
+SES_SENDER = os.getenv("AWS_SES_SENDER", "no-reply@deepchest.com")
+ses_client = boto3.client("ses", region_name=AWS_REGION)
+
+
+def send_email_ses(to_email, subject, body_text, body_html=None):
+    body ={
+        "Text":{"Data": body_text, "Charset":"UTF-8"},
+    }
+    if body_html:
+        body["Html"] = {"Data": body_html, "Charset":"UTF-8"}
+    
+    
+    ses_client.send_email(
+        Source=SES_SENDER,
+        Destination={"ToAddresses": [to_email]},
+        Message={
+                "Subject": {"Data": subject, "Charset": "UTF-8"},
+                "Body": body,
+            },
+        )
+#SES notify Patient
+def notify_patient(conn, patient_id, doctor_id, event_type, related_id=None):
+    cursor = conn.cursor(dictionary=True)
+
+    #get patient info
+    cursor.execute("""
+                   SELECT firstName, email, notification_email, 
+                   notifications_enabled 
+                   FROM patient WHERE USERID = %s
+    """,(patient_id,))
+    patient = cursor.fetchone()
+
+    if not patient:
+        cursor.close()
+        return
+    
+    if not patient["notifications_enabled"]:
+        cursor.close()
+        return
+    
+    else:
+        to_email = patient["notification_email"] or patient["email"]
+        expiry_date = datetime.now() + timedelta(days=7)
+    
+    #insert into notifications table
+    cursor.execute("""
+        INSERT INTO notifications (patientID, doctorID, event_type, relatedID, expiryDate)
+                   VALUES (%s, %s, %s, %s, %s)
+    """,(patient_id, doctor_id, event_type, related_id, expiry_date,))
+    conn.commit()
+
+    #send email bast on event type 
+    first_name = patient["firstName"]
+    if event_type == "ACCOUNT_CREATED":
+        cursor.execute("""SELECT clinicID FROM patient WHERE USERID = %s""", (patient_id,))
+        clinic_id = cursor.fetchone()
+        cursor.execute("""SELECT clinicName FROM clinic WHERE clinicID = %s""",(clinic_id,))
+        clinic = cursor.fetchone()
+        subject = "Welcome to DeepChest!"
+        body_text = f"""Welcome {first_name}, Your account has been successfully created for {clinic} clinic. You can now log in to DeepChest.
+        If you did not request this account, please contact support!"""
+
+    elif event_type == "ACCOUNT_UPDATED":
+        subject = "Your account information has been updated"
+        body_text = f"""Hello {first_name}, Your account information has been recently updated. If your made this change, no further action
+        required. If you did not make this change, please contact support!"""
+
+    elif event_type == "REPORT_READY":
+        subject="Your Chest X-RAY Reeport is Ready"
+        body_text = f"""Hello {first_name}, Your chest X-RAY report is now ready. 
+        Please log in to your DeepChest account and view the report under Reports section.
+        If you did not expect this report, please contact the clinic."""
+
+    elif event_type == "APPOINTMENT_BOOKED":
+        cursor.execute(""" SELECT appointment_date, appointment_time FROM appointments WHERE apptID = %s""", (related_id,))
+        appt = cursor.fetchone()
+        subject = "Appointment Booked Successfully"
+        body_text = f"""Hello {first_name}, your appointment has been successfully booked.
+        Your appointment is on {appt['appointment_date']} at {appt['appointmnent_time']}.
+        """
+    elif event_type =="REPORT_DELETED":
+        subject = "A Report has expired"
+        body_text = (f""" Hello {first_name}, one of your report has expired. n\
+                          Please login to your account for update. 
+                    """)
+    else:
+        cursor.close()
+        return
+    
+    #send email
+    send_email_ses(to_email, subject, body_text)
+    cursor.close()
+
+def notify_doctor(conn,doctor_id,event_type, patient_id = None, related_id=None):
+     cursor = conn.cursor(dictionary=True)
+     #get patient info
+     cursor.execute("""
+                   SELECT firstName, lastName, email
+                   FROM doctor WHERE USERID = %s
+    """,(doctor_id,))
+     doctor = cursor.fetchone()
+
+     if not doctor:
+        cursor.close()
+        return
+     else:
+        to_email = doctor["email"]
+        first_name = doctor["firstName"]
+        expiry_date = datetime.now() + timedelta(days=7)
+
+     #insert into notifications table
+     cursor.execute("""
+        INSERT INTO notifications (patientID, doctorID, event_type, relatedID, expiryDate)
+                   VALUES (%s, %s, %s, %s, %s)
+    """,(patient_id, doctor_id, event_type, related_id, expiry_date,))
+     conn.commit()
+
+     if event_type == "ACCOUNT_UPDATED":
+         subject="Your Account has been updated"
+         body_text = (f"""Hello Dr. {first_name}, n\n\
+                        Your account information has been updated. 
+                      """)
+     elif event_type == "REPORT_DELETED":
+        cursor.execute("SELECT firstName FROM patient WHERE patientID=%s",(patient_id,))
+        patient_firstname=cursor.fetchone()
+        subject=(""" New Appoinment """)
+        body_text=(f"""Dear Dr.{first_name}, a report status has been updated. n\
+                    Patient: {patient_firstname} n\
+                    Report: {related_id} n\
+                    Status: Expired or Deleted
+                """)
+     elif event_type == "APPOINTMENT_BOOKED":
+        cursor.execute(""" SELECT appointment_date, appointment_time FROM appointments WHERE apptID = %s and doctorID = %s""", (related_id, doctor_id,))
+        appt = cursor.fetchone()
+        cursor.execute("SELECT firstName, lastName FROM patient WHERE patientID =%s",(patient_id))
+        patient_name = cursor.fetchone()
+        subject = "New Appointment"
+        body_text = (f"""Hello Dr. {first_name}, you have an appointment with patient {patient_name} .
+        Your appointment is on {appt['appointment_date']} at {appt['appointmnent_time']}.
+        """)
+     else:
+        cursor.close()
+        return
+     
+     send_email_ses=(to_email, subject, body_text)
+     cursor.close()
+
+    
 # Configures Route for the home page
 @app.route('/')
 def home():
@@ -178,7 +328,6 @@ def clinic_signup():
 #Route for signing up new users(Incomplete, just a placeholder)
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
-    import mysql.connector
     clinics = []
     doctors = []
     if request.method == 'POST':
@@ -196,34 +345,31 @@ def signup():
         province = request.form.get('province')
         postalCode = request.form.get('postalCode')
         insurance = request.form.get('insurance')
-        notifications_enabled = request.form.get('notifications_enabled', '0')
-        notification_email = email if notifications_enabled == '1' else None
-        username = email  # Or generate a username as needed
-        childID = None  # Assuming childID is optional or can be set later
+        username = email  
+        childID = None  
 
         # Connect to the database
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
 
-        # Insert into login table (assuming userType is 'patient')
         cursor.execute(
             "INSERT INTO login (USERID, username, password, userType, clinicID) VALUES (%s, %s, %s, %s, %s)",
             (None, username, password, 'patient', clinicID)
         )
-        # Get the USERID of the newly inserted user
+       
         conn.commit()
         cursor.execute("SELECT USERID FROM login WHERE username=%s", (username,))
         user = cursor.fetchone()
         user_id = user[0] if user else None
 
-        # Insert into patient table (if you have one)
-        # Uncomment and adjust the following if you have a patient table:
         cursor.execute(
            "INSERT INTO `patient` (`firstName`, `lastName`,`dateofbirth`, `USERID`, `address`, `city`, `province`, `postalCode`, `phone`, `email`,`insurance`,`doctorID`,`childID`,`clinicID`,`notifications_enabled`,`notification_email`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s,%s,%s,%s,%s)",
             (firstName, lastName, birthday, user_id, address, city, province, postalCode, phoneNumber, email, insurance, doctorID, childID, clinicID, notifications_enabled, notification_email)
          )
-
         conn.commit()
+        cursor.execute(" SELECT USERID FROM patient WHERE doctorID=%s AND firstname=%s AND lastname=%s",(doctorID,firstName,lastName))
+        patient_id = cursor.fetchone()
+        notify_patient(conn, patient_id, doctorID, "ACCOUNT_CREATED")
         cursor.close()
         conn.close()
 
@@ -503,7 +649,6 @@ def patient_book_appointment():
             cursor.close()
             conn.close()
             flash('Appointment booked successfully!')
-            create_notification(patient_id=user_id, doctor_id=doctor_id, event_type="APPOINTMENT_BOOKED")
             return redirect(url_for('patient_appointments'))
         except mysql.connector.Error as e:
             conn.rollback()
@@ -757,7 +902,6 @@ def patient_messages():
                 )
                 conn.commit()
                 flash('Message sent successfully.', 'success')
-                create_notification(doctor_id=doctor_id, patient_id=user_id, event_type="NEW_MESSAGE")
                 ins.close()
                 cursor.close()
                 conn.close()
@@ -818,7 +962,7 @@ def patient_account():
         """, (email, password, user_id))
         conn.commit()
         flash('Account updated successfully!')
-        create_notification(patient_id=user_id, event_type="ACCOUNT_UPDATED")
+        notify_patient(conn, user_id, None, "ACCOUNT_UPDATED")
         # Re-fetch updated info for display
     cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id,))
     patient = cursor.fetchone()
@@ -1520,7 +1664,7 @@ def predict(file):
 def get_xray(xray_id):
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
-    cursor.execute("SELECT files from xrays where xrayID = %s", (xray_id,))
+    cursor.execute("SELECT files from Xrays where xrayID = %s", (xray_id,))
     row = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -1680,7 +1824,7 @@ def doctor_report_generation():
             }
     
     #get x-ray
-    cursor.execute("SELECT files FROM xrays WHERE patientID = %s ORDER BY date DESC LIMIT 1", (patient_id,))
+    cursor.execute("SELECT files FROM Xrays WHERE patientID = %s ORDER BY date DESC LIMIT 1", (patient_id,))
     #xray = cursor.fetchone()[0]
     #cursor.execute("SELECT files FROM xrays WHERE xrayID = %s", (xray_id,))
     file = cursor.fetchone()
@@ -1704,11 +1848,12 @@ def doctor_report_generation():
     #save report to database
     cursor.execute("INSERT INTO Reports (patientID, doctorID, reportDate, expiryDate, files) VALUES (%s, %s, %s, %s, %s)",
                        (patient_id, doctor_id, report_date, report_expiry_date, report_pdf))
-    conn.commit()  # Commit the transaction to save the report
     
-    # Get the reportID of the newly inserted report
-    report_id = cursor.lastrowid
-    
+    conn.commit()
+    cursor.execute("SELECT reportID FROM Reports WHERE patientID = %s ORDER BY reportDate DESC LIMIT 1",(patient_id,))
+    row = cursor.fetchone()
+    report_id = row[0]
+    notify_patient(conn, patient_id,doctor_id, "REPORT_READY", report_id)
     cursor.close()
     conn.close()
 
@@ -1756,7 +1901,7 @@ def doctor_ai_diagnosis():
 
             else:
                 cursor.execute("""
-                           INSERT INTO xrays (patientID, doctorID, date, expires_at, files) VALUES (%s, %s, %s, %s, %s)""", 
+                           INSERT INTO Xrays (patientID, doctorID, date, expires_at, files) VALUES (%s, %s, %s, %s, %s)""", 
                            (patient_id,doctor_id, datetime.now(),expiry_date, xray_bytes))
                 conn.commit()
                 cursor.close()
@@ -1802,7 +1947,6 @@ def doctor_account():
             ) VALUES (%s, %s, %s, %s, %s)
         """, (user_id, first_name, last_name, email, phone))
         conn.commit()
-
         cursor.close()
         conn.close()
 
@@ -1814,126 +1958,6 @@ def doctor_account():
 
     return render_template('doctor/doctor_modifyaccount.html', doctor=doctor)
 
-def create_notification(patient_id=None, doctor_id=None, event_type="", related_id=None):
-    try:
-        conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            INSERT INTO notifications (patientID, doctorID, event_type, relatedID, notification_status)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (patient_id, doctor_id, event_type, related_id, 0))      # 0 = not yet sent
-
-        conn.commit()
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        print("Notification insert error:", str(e))
-
-
-def send_notifications():
-    """
-    Retrieves pending notifications and processes them.
-    Actual email sending logic is a placeholder for SES or any other service.
-    """
-    try:
-        conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor(dictionary=True)
-
-        # Fetch all pending notifications
-        cursor.execute("""
-            SELECT n.notificationID, n.patientID, n.doctorID, n.event_type, n.relatedID,
-                   p.email AS patient_email, d.email AS doctor_email
-            FROM notifications n
-            LEFT JOIN patient p ON n.patientID = p.USERID
-            LEFT JOIN doctor d ON n.doctorID = d.USERID
-            WHERE n.notification_status = FALSE
-        """)
-        notifications = cursor.fetchall()
-
-        for n in notifications:
-            print(f"[{datetime.now()}] Notification ID: {n['notificationID']}")
-            print(f"  Event: {n['event_type']}, Related ID: {n['relatedID']}")
-            if n['patient_email']:
-                print(f"  Patient: {n['patient_email']}")
-            if n['doctor_email']:
-                print(f"  Doctor: {n['doctor_email']}")
-
-            # send email via SES here
-            send_email(
-                to_address=n['patient_email'] or n['doctor_email'], subject=get_notification_text(n['event_type']), body="You have a new notification.")
-
-            # Mark notification as sent
-            cursor.execute("""
-                UPDATE notifications
-                SET notification_status = TRUE, created_at = NOW()
-                WHERE notificationID = %s
-            """, (n['notificationID'],))
-            conn.commit()
-
-        cursor.close()
-        conn.close()
-        print(f"Processed {len(notifications)} pending notifications.")
-
-    except mysql.connector.Error as e:
-        print("Database error:", e)
-        try:
-            cursor.close()
-            conn.close()
-        except:
-            pass
-
-def send_email(to_address, subject, body):
-    """
-    Placeholder function to send email via AWS SES
-    """
-    print(f"Sending email to {to_address} with subject '{subject}'")
-    print("Email body:")
-    print(body)
-    # Implement actual email sending logic here
-
-
-
-# Add Report Route (doctor adds a new report)
-@app.route('/add-report', methods=['POST'])
-def add_report():
-    data = request.json
-
-    patient_id = data.get('patient_id')
-    doctor_id = data.get('doctor_id')
-
-    if not patient_id or not doctor_id:
-        return jsonify({"error": "patient_id and doctor_id are required"}), 400
-
-    report_date = data.get('report_date', str(date.today()))
-    files = data.get('files', None)
-
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor()
-
-    query = """
-    INSERT INTO Reports (patientID, doctorID, reportDate, files)
-    VALUES (%s, %s, %s, %s)
-    """
-    cursor.execute(query, (patient_id, doctor_id, report_date, files))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-    create_notification(patient_id=patient_id, doctor_id=doctor_id, event_type="REPORT_READY")
-    create_notification(doctor_id=doctor_id, patient_id=patient_id, event_type="REPORT_SENT_CONFIRMATION")
-
-
-
-def get_notification_text(event_type):
-    lookup = {
-        "ACCOUNT_APPROVED": "Your doctor account modification request has been approved.",
-        "REPORT_READY": "Your medical report is now available.",
-        "REPORT_DELETED": "A medical report linked to your account has been deleted by admin.",
-        "REPORT_SENT": "A report has been successfully sent to a patient.",
-        "APPOINTMENT_BOOKED": "A new appointment has been booked.",
-    }
-    return lookup.get(event_type, "You have a new notification.")
 
 
 # Clinic Admin Home Page
@@ -2182,7 +2206,6 @@ def admin_managereports():
     expired_count = delete_expired_reports()
     if expired_count > 0:
         flash(f"Automatically removed {expired_count} expired report(s).", "info")
-        create_notification(event_type="REPORT_DELETED")
 
     
     clinic_id = session.get('clinicID')
@@ -2267,10 +2290,14 @@ def admin_book_appointment():
         # Insert appointment
         try:
             cursor.execute("INSERT INTO appointments (patientID, appointment_date, appointment_time, doctorID, clinicID, symptoms) VALUES (%s, %s, %s, %s, %s, %s)", (patient_id, appointment_date, appointment_time, doctor_id, clinic_id, symptoms))
+            appt_id = cursor.lastrowid
             conn.commit()
+            flash('Appointment booked successfully!')
+            notify_patient(conn,patient_id,doctor_id, "APPOINTMENT_BOOKED", appt_id)
+            notify_doctor(conn,doctor_id, "APPOINTMENT_BOOKED",patient_id,appt_id)
             cursor.close()
             conn.close()
-            flash('Appointment booked successfully!')
+
             return redirect(url_for('admin_appointments'))
         except mysql.connector.Error as e:
             conn.rollback()
@@ -2883,7 +2910,13 @@ def admin_delete_report():
         return redirect(url_for('admin_managereports'))
     
     # Delete the report
+    cursor.execute("SELECT patientID FROM Reports WHERE reportID = %s", (report_id,))
+    patient_id = cursor.fetchone()
+    cursor.execute("SELECT doctorID FROM Reports WHERE reportID = %s", (report_id))
+    doctor_id = cursor.fetchone()
     cursor.execute("DELETE FROM Reports WHERE reportID = %s", (report_id,))
+    notify_patient(conn,patient_id,doctor_id,"REPORT_DELETED")
+    notify_doctor(conn,doctor_id,"REPORT_DELETED",patient_id,report_id)
     conn.commit()
     cursor.close()
     conn.close()
@@ -3095,7 +3128,7 @@ def clinic_manage_user(user_id):
                     UPDATE patient SET firstName=%s, lastName=%s, dateofbirth=%s, address=%s, city=%s, province=%s, postalCode=%s, phone=%s, email=%s, insurance=%s
                     WHERE USERID=%s
                 """, (first, last, birthday, address, city, province, postal, phone, email, insurance, user_id))
-
+                notify_patient(conn,user_id,"ACCOUNT_UPDATED")
                 # Update login username/password if provided
                 if password:
                     cursor.execute("UPDATE login SET username=%s, password=%s WHERE USERID=%s", (email, password, user_id))
@@ -3110,7 +3143,7 @@ def clinic_manage_user(user_id):
                     UPDATE doctor SET firstName=%s, lastName=%s, email=%s, phone=%s
                     WHERE USERID=%s
                 """, (first, last, email, phone, user_id))
-
+                notify_doctor(conn, user_id,"ACCOUNT_UPDATED")
                 # Keep login username/password in sync if provided
                 if password:
                     cursor.execute("UPDATE login SET username=%s, password=%s WHERE USERID=%s", (email, password, user_id))
@@ -3124,6 +3157,7 @@ def clinic_manage_user(user_id):
                 return redirect(url_for('clinic_manage_accounts'))
 
             conn.commit()
+            
             flash('Account updated.', 'success')
         except Exception as e:
             conn.rollback()
@@ -3205,6 +3239,7 @@ def clinic_delete_user():
         conn.close()
 
     return redirect(url_for('clinic_manage_accounts'))
+
 
 if __name__ == '__main__':
     app.run(debug=True)
