@@ -64,7 +64,7 @@ def notify_patient(conn, patient_id, doctor_id, event_type, related_id=None):
     #get patient info
     cursor.execute("""
                    SELECT firstName, email, notification_email, 
-                   email_opt_in, notifications_enabled 
+                   notifications_enabled 
                    FROM patient WHERE USERID = %s
     """,(patient_id,))
     patient = cursor.fetchone()
@@ -73,7 +73,7 @@ def notify_patient(conn, patient_id, doctor_id, event_type, related_id=None):
         cursor.close()
         return
     
-    if not (patient["email_opt_in"] and patient["notifications_enabled"]):
+    if not patient["notifications_enabled"]:
         cursor.close()
         return
     
@@ -89,7 +89,7 @@ def notify_patient(conn, patient_id, doctor_id, event_type, related_id=None):
     conn.commit()
 
     #send email bast on event type 
-    first_name = patient["firstname"]
+    first_name = patient["firstName"]
     if event_type == "ACCOUNT_CREATED":
         cursor.execute("""SELECT clinicID FROM patient WHERE USERID = %s""", (patient_id,))
         clinic_id = cursor.fetchone()
@@ -1762,8 +1762,9 @@ def doctor_report_generation():
                        (patient_id, doctor_id, report_date, report_expiry_date, report_pdf))
     
     conn.commit()
-    cursor.execute("SELECT reportID FROM reports WHERE patientID = %s ORDER BY reportDate DESC LIMIT 1",(patient_id,))
-    report_id = cursor.fetchone()
+    cursor.execute("SELECT reportID FROM Reports WHERE patientID = %s ORDER BY reportDate DESC LIMIT 1",(patient_id,))
+    row = cursor.fetchone()
+    report_id = row[0]
     notify_patient(conn, patient_id,doctor_id, "REPORT_READY", report_id)
     cursor.close()
     conn.close()
