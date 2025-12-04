@@ -29,10 +29,10 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 
 # Database connection config
 db_config = {
-     'host': 'localhost',
-    'user': 'root',
-    'password': 'test1234',
-    'database': 'DeepChest'
+    'host': 'mysql-database.cjogeuu2gnn5.ca-central-1.rds.amazonaws.com',
+    'user': 'admin',
+    'password': 'AdminIPA',
+    'database': 'DeepChest_DB'
 }
 
 #SES helper
@@ -105,7 +105,7 @@ def notify_patient(conn, patient_id, doctor_id, event_type, related_id=None):
         required. If you did not make this change, please contact support!"""
 
     elif event_type == "REPORT_READY":
-        subject="Your Chest X-RAY Reeport is Ready"
+        subject="Your Chest X-RAY Report is Ready"
         body_text = f"""Hello {first_name}, Your chest X-RAY report is now ready. 
         Please log in to your DeepChest account and view the report under Reports section.
         If you did not expect this report, please contact the clinic."""
@@ -1723,27 +1723,6 @@ def generate_report(patient, doctor_note, xray_bytes, ai_prediction=None, pdf_ti
     c.line(50, y, page_width - 50, y)
     y -= 18
 
-    # AI Diagnosis section
-    if ai_prediction:
-        c.setFont("Helvetica-Bold", 12)
-        c.drawString(50, y, "AI-Assisted Diagnosis:")
-        y -= 16
-        c.setFont("Helvetica", 11)
-        c.drawString(50, y, f"Predicted Condition: {ai_prediction['label']}")
-        y -= 14
-        c.drawString(50, y, f"Confidence: {ai_prediction['prob']:.1f}%")
-        y -= 14
-        c.setFont("Helvetica", 11)
-        c.drawString(50, y, "All Probabilities:")
-        y -= 12
-        for condition, prob in ai_prediction['probs']:
-            c.drawString(70, y, f"{condition}: {prob:.1f}%")
-            y -= 12
-        y -= 6
-        c.setLineWidth(0.5)
-        c.line(50, y, page_width - 50, y)
-        y -= 18
-
     # Doctor notes
     c.setFont("Helvetica-Bold", 12)
     c.drawString(50, y, "Doctor Notes:")
@@ -1895,13 +1874,14 @@ def doctor_ai_diagnosis():
             conn = mysql.connector.connect(**db_config)
             cursor = conn.cursor()
             cursor.execute("SELECT USERID FROM patient WHERE CONCAT(firstName, ' ', lastName) = %s", (patient_name,))
-            patient_id = cursor.fetchone()[0]
-            if not patient_id:
+            row = cursor.fetchone()
+            if row is None:
                 cursor.close()
                 conn.close()
-                flash('Patient not found.')
-
+                flash("Patient not found. Please check patient's name.")
+                return redirect(request.url)
             else:
+                patient_id = row[0]
                 cursor.execute("""
                            INSERT INTO Xrays (patientID, doctorID, date, expires_at, files) VALUES (%s, %s, %s, %s, %s)""", 
                            (patient_id,doctor_id, datetime.now(),expiry_date, xray_bytes))
