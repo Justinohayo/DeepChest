@@ -29,10 +29,10 @@ app.secret_key = '1234'  # Needed for flash messages and sessions
 
 # Database connection config
 db_config = {
-     'host': 'localhost',
-    'user': 'root',
-    'password': 'test1234',
-    'database': 'DeepChest'
+    'host': 'mysql-database.cjogeuu2gnn5.ca-central-1.rds.amazonaws.com',
+    'user': 'admin',
+    'password': 'AdminIPA',
+    'database': 'DeepChest_DB'
 }
 
 #SES helper
@@ -1895,12 +1895,13 @@ def doctor_ai_diagnosis():
             conn = mysql.connector.connect(**db_config)
             cursor = conn.cursor()
             cursor.execute("SELECT USERID FROM patient WHERE CONCAT(firstName, ' ', lastName) = %s", (patient_name,))
-            patient_id = cursor.fetchone()[0]
+            row = cursor.fetchone()
+            patient_id = row[0]
             if not patient_id:
                 cursor.close()
                 conn.close()
                 flash('Patient not found.')
-
+                
             else:
                 cursor.execute("""
                            INSERT INTO Xrays (patientID, doctorID, date, expires_at, files) VALUES (%s, %s, %s, %s, %s)""", 
