@@ -105,8 +105,11 @@ td a:hover {
   text-align: center;
 }
 
-
-
+.flash-container {
+  max-width: 1200px;
+  margin: 16px auto;
+  padding: 0 20px;
+}
 
 .report-search-bar-container {
   width: 100%;
