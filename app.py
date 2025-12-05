@@ -63,10 +63,10 @@ def notify_patient(conn, patient_id, doctor_id, event_type, related_id=None):
 
     #get patient info
     cursor.execute("""
-                   SELECT firstName, email, notification_email, 
-                   notifications_enabled 
+                   SELECT USERID, firstName, email, notification_email, 
+                   notifications_enabled, clinicID 
                    FROM patient WHERE USERID = %s
-    """,(patient_id))
+    """,(patient_id,))
     patient = cursor.fetchone()
 
     if not patient:
@@ -85,18 +85,19 @@ def notify_patient(conn, patient_id, doctor_id, event_type, related_id=None):
     cursor.execute("""
         INSERT INTO notifications (patientID, doctorID, event_type, relatedID, expiryDate)
                    VALUES (%s, %s, %s, %s, %s)
-    """,(patient_id, doctor_id, event_type, related_id, expiry_date,))
+    """,(patient["USERID"], doctor_id, event_type, related_id, expiry_date))
     conn.commit()
 
     #send email bast on event type 
     first_name = patient["firstName"]
     if event_type == "ACCOUNT_CREATED":
-        cursor.execute("""SELECT clinicID FROM patient WHERE USERID = %s""", (patient_id))
-        clinic_id = cursor.fetchone()
-        cursor.execute("""SELECT clinicName FROM clinic WHERE clinicID = %s""",(clinic_id))
-        clinic = cursor.fetchone()
+        cursor.execute("""SELECT clinicName FROM patient WHERE USERID = %s""", (patient["clinicID"],))
+        clinic_row = cursor.fetchone()
+        clinic_name = clinic_row["clinicName"]
+        #cursor.execute("""SELECT clinicName FROM clinic WHERE clinicID = %s""",(clinic_id,))
+        #clinic = cursor.fetchone()
         subject = "Welcome to DeepChest!"
-        body_text = f"""Welcome {first_name}, Your account has been successfully created for {clinic} clinic. You can now log in to DeepChest.
+        body_text = f"""Welcome {first_name}, Your account has been successfully created for {clinic_name} clinic. You can now log in to DeepChest.
         If you did not request this account, please contact support!"""
 
     elif event_type == "ACCOUNT_UPDATED":
@@ -115,11 +116,11 @@ def notify_patient(conn, patient_id, doctor_id, event_type, related_id=None):
         appt = cursor.fetchone()
         subject = "Appointment Booked Successfully"
         body_text = f"""Hello {first_name}, your appointment has been successfully booked.
-        Your appointment is on {appt['appointment_date']} at {appt['appointmnent_time']}.
+        Your appointment is on {appt['appointment_date']} at {appt['appointment_time']}.
         """
     elif event_type =="REPORT_DELETED":
         subject = "A Report has expired"
-        body_text = (f""" Hello {first_name}, one of your report has expired. n\
+        body_text = (f""" Hello {first_name}, one of your report has expired.
                           Please login to your account for update. 
                     """)
     else:
@@ -136,7 +137,7 @@ def notify_doctor(conn,doctor_id,event_type, patient_id = None, related_id=None)
      cursor.execute("""
                    SELECT firstName, lastName, email
                    FROM doctor WHERE USERID = %s
-    """,(doctor_id))
+    """,(doctor_id,))
      doctor = cursor.fetchone()
 
      if not doctor:
@@ -151,7 +152,7 @@ def notify_doctor(conn,doctor_id,event_type, patient_id = None, related_id=None)
      cursor.execute("""
         INSERT INTO notifications (patientID, doctorID, event_type, relatedID, expiryDate)
                    VALUES (%s, %s, %s, %s, %s)
-    """,(patient_id, doctor_id, event_type, related_id, expiry_date,))
+    """,(patient_id, doctor_id, event_type, related_id, expiry_date))
      conn.commit()
 
      if event_type == "ACCOUNT_UPDATED":
@@ -160,7 +161,7 @@ def notify_doctor(conn,doctor_id,event_type, patient_id = None, related_id=None)
                         Your account information has been updated. 
                       """)
      elif event_type == "REPORT_DELETED":
-        cursor.execute("SELECT firstName FROM patient WHERE patientID=%s",(patient_id))
+        cursor.execute("SELECT firstName FROM patient WHERE USERID=%s",(patient_id,))
         patient_firstname=cursor.fetchone()
         subject=(""" New Appoinment """)
         body_text=(f"""Dear Dr.{first_name}, a report status has been updated. n\
@@ -169,13 +170,13 @@ def notify_doctor(conn,doctor_id,event_type, patient_id = None, related_id=None)
                     Status: Expired or Deleted
                 """)
      elif event_type == "APPOINTMENT_BOOKED":
-        cursor.execute(""" SELECT appointment_date, appointment_time FROM appointments WHERE apptID = %s and doctorID = %s""", (related_id, doctor_id))
+        cursor.execute(""" SELECT appointment_date, appointment_time FROM appointments WHERE apptID = %s and doctorID = %s""", (related_id, doctor_id,))
         appt = cursor.fetchone()
-        cursor.execute("SELECT firstName, lastName FROM patient WHERE patientID =%s",(patient_id))
+        cursor.execute("SELECT firstName, lastName FROM patient WHERE USERID =%s",(patient_id,))
         patient_name = cursor.fetchone()
         subject = "New Appointment"
         body_text = (f"""Hello Dr. {first_name}, you have an appointment with patient {patient_name} .
-        Your appointment is on {appt['appointment_date']} at {appt['appointmnent_time']}.
+        Your appointment is on {appt['appointment_date']} at {appt['appointment_time']}.
         """)
      else:
         cursor.close()
@@ -204,7 +205,7 @@ def login():
         # Query to check if user exists
         cursor.execute(
             "SELECT * FROM login WHERE username=%s AND password=%s",
-            (username, password)
+            (username, password,)
         )
         user = cursor.fetchone()
         cursor.close()
@@ -352,7 +353,7 @@ def signup():
 
         # Connect to the database
         conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True, buffered=True)
 
         cursor.execute(
             "INSERT INTO login (USERID, username, password, userType, clinicID) VALUES (%s, %s, %s, %s, %s)",
@@ -360,18 +361,18 @@ def signup():
         )
        
         conn.commit()
-        cursor.execute("SELECT USERID FROM login WHERE username=%s", (username))
-        user = cursor.fetchone()
-        user_id = user[0] if user else None
+        user_id = cursor.lastrowid
+        #cursor.execute("SELECT USERID FROM login WHERE username=%s", (username,))
 
         cursor.execute(
            "INSERT INTO `patient` (`firstName`, `lastName`,`dateofbirth`, `USERID`, `address`, `city`, `province`, `postalCode`, `phone`, `email`,`insurance`,`doctorID`,`childID`,`clinicID`,`notifications_enabled`,`notification_email`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s,%s,%s,%s,%s)",
             (firstName, lastName, birthday, user_id, address, city, province, postalCode, phoneNumber, email, insurance, doctorID, childID, clinicID, notifications_enabled, notification_email)
          )
         conn.commit()
-        cursor.execute(" SELECT USERID FROM patient WHERE doctorID=%s AND firstname=%s AND lastname=%s",(doctorID,firstName,lastName))
-        patient_id = cursor.fetchone()
-        notify_patient(conn, patient_id, doctorID, "ACCOUNT_CREATED")
+        #cursor.execute(" SELECT USERID FROM patient WHERE doctorID=%s AND firstname=%s AND lastname=%s",(doctorID,firstName,lastName,))
+        #row = cursor.fetchone()
+        #patient_id = row['USERID']
+        notify_patient(conn, user_id, doctorID, "ACCOUNT_CREATED")
         cursor.close()
         conn.close()
 
@@ -419,7 +420,7 @@ def patient_appointments():
         JOIN doctor d ON a.doctorID = d.USERID
         WHERE a.patientID = %s
         ORDER BY a.appointment_date, a.appointment_time
-    """, (user_id))
+    """, (user_id,))
     appointments = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -468,7 +469,7 @@ def patient_cancel_appointment():
     cursor = conn.cursor()
     
     # Verify the appointment belongs to this patient before deleting
-    cursor.execute("SELECT apptID FROM appointments WHERE apptID = %s AND patientID = %s", (appointment_id, user_id))
+    cursor.execute("SELECT apptID FROM appointments WHERE apptID = %s AND patientID = %s", (appointment_id, user_id,))
     appointment = cursor.fetchone()
     
     if not appointment:
@@ -478,7 +479,7 @@ def patient_cancel_appointment():
         return redirect(url_for('patient_appointments'))
     
     try:
-        cursor.execute("DELETE FROM appointments WHERE apptID = %s", (appointment_id,))
+        cursor.execute("DELETE FROM appointments WHERE apptID = %s", (appointment_id))
         conn.commit()
         flash('Appointment cancelled successfully.', 'success')
     except mysql.connector.Error as e:
@@ -505,7 +506,7 @@ def patient_manage_appointment(appointment_id):
         FROM appointments a
         JOIN doctor d ON a.doctorID = d.USERID
         WHERE a.apptID = %s AND a.patientID = %s
-    """, (appointment_id, user_id))
+    """, (appointment_id, user_id,))
     appointment = cursor.fetchone()
 
     if not appointment:
@@ -533,7 +534,7 @@ def patient_manage_appointment(appointment_id):
             doctor_id = None
 
         if doctor_id and new_date and new_time:
-            cursor.execute("SELECT apptID FROM appointments WHERE doctorID = %s AND appointment_date = %s AND appointment_time = %s AND apptID != %s", (doctor_id, new_date, new_time, appointment_id))
+            cursor.execute("SELECT apptID FROM appointments WHERE doctorID = %s AND appointment_date = %s AND appointment_time = %s AND apptID != %s", (doctor_id, new_date, new_time, appointment_id,))
             if cursor.fetchone():
                 cursor.close()
                 conn.close()
@@ -620,7 +621,7 @@ def patient_book_appointment():
         # Fetch patient's doctor and clinic
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
-        cursor.execute("SELECT doctorID, clinicID FROM patient WHERE USERID = %s", (user_id))
+        cursor.execute("SELECT doctorID, clinicID FROM patient WHERE USERID = %s", (user_id,))
         prow = cursor.fetchone()
         doctor_id = None
         clinic_id = None
@@ -637,7 +638,7 @@ def patient_book_appointment():
 
         # Check for conflict (same doctor, same date/time)
         if doctor_id:
-            cursor.execute("SELECT apptID FROM appointments WHERE doctorID = %s AND appointment_date = %s AND appointment_time = %s", (doctor_id, appointment_date, appointment_time))
+            cursor.execute("SELECT apptID FROM appointments WHERE doctorID = %s AND appointment_date = %s AND appointment_time = %s", (doctor_id, appointment_date, appointment_time,))
             if cursor.fetchone():
                 cursor.close()
                 conn.close()
@@ -662,7 +663,7 @@ def patient_book_appointment():
     # GET: render calendar with patient's existing appointment dates
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT appointment_date FROM appointments WHERE patientID = %s", (user_id))
+    cursor.execute("SELECT DISTINCT appointment_date FROM appointments WHERE patientID = %s", (user_id,))
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -694,7 +695,7 @@ def patient_booked_times():
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
     # get doctor for this patient
-    cursor.execute("SELECT doctorID FROM patient WHERE USERID = %s", (user_id))
+    cursor.execute("SELECT doctorID FROM patient WHERE USERID = %s", (user_id,))
     prow = cursor.fetchone()
     doctor_id = None
     if prow:
@@ -724,7 +725,7 @@ def admin_booked_times():
         return '', 400
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
-    cursor.execute("SELECT appointment_time FROM appointments WHERE doctorID = %s AND appointment_date = %s", (doctor_id, date_q))
+    cursor.execute("SELECT appointment_time FROM appointments WHERE doctorID = %s AND appointment_date = %s", (doctor_id, date_q,))
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -745,7 +746,7 @@ def patient_reports():
             JOIN doctor d ON r.doctorID = d.USERID
             WHERE r.patientID = %s
             ORDER BY r.reportDate DESC
-        """, (user_id))
+        """, (user_id,))
         reports = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -796,7 +797,7 @@ def search_reports():
             JOIN doctor d ON r.doctorID = d.USERID
             WHERE r.patientID = %s AND MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
             ORDER BY r.reportDate DESC
-        """, (user_id, month_num, year_num))
+        """, (user_id, month_num, year_num,))
     elif month_num:
         cursor.execute("""
             SELECT r.reportID,r.files, r.reportDate, r.doctorID,
@@ -805,7 +806,7 @@ def search_reports():
             JOIN doctor d ON r.doctorID = d.USERID
             WHERE r.patientID = %s AND MONTH(r.reportDate) = %s
             ORDER BY r.reportDate DESC
-        """, (user_id, month_num))
+        """, (user_id, month_num,))
     else:
         cursor.execute("""
             SELECT r.reportID,r.files, r.reportDate, r.doctorID,
@@ -819,7 +820,7 @@ def search_reports():
                 OR d.lastName LIKE %s
             )
             ORDER BY r.reportDate DESC
-        """, (user_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+        """, (user_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%",))
     reports = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -843,7 +844,7 @@ def patient_report_details():
         FROM Reports r
         JOIN doctor d ON r.doctorID = d.USERID
     WHERE r.reportID = %s AND r.patientID = %s
-    """, (report_id, user_id))
+    """, (report_id, user_id,))
     report = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -872,7 +873,7 @@ def patient_messages():
 
         clinic_id = session.get('clinicID')
         if clinic_id:
-            cursor.execute('SELECT USERID, firstName, lastName FROM doctor WHERE clinicID = %s', (clinic_id))
+            cursor.execute('SELECT USERID, firstName, lastName FROM doctor WHERE clinicID = %s', (clinic_id,))
         else:
             cursor.execute('SELECT USERID, firstName, lastName FROM doctor')
         doctors = cursor.fetchall()
@@ -966,7 +967,7 @@ def patient_account():
         flash('Account updated successfully!')
         notify_patient(conn, user_id, None, "ACCOUNT_UPDATED")
         # Re-fetch updated info for display
-    cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id))
+    cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id,))
     patient = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -1088,7 +1089,7 @@ def add_child():
     cursor = conn.cursor(dictionary=True)
 
     # Fetch patient info
-    cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id))
+    cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id,))
     patient = cursor.fetchone()
 
     # Determine clinicID and doctorID (prefer patient table values)
@@ -1107,13 +1108,13 @@ def add_child():
     # Fetch clinic info
     clinic = None
     if clinic_id:
-        cursor.execute("SELECT * FROM clinic WHERE clinicID = %s", (clinic_id))
+        cursor.execute("SELECT * FROM clinic WHERE clinicID = %s", (clinic_id,))
         clinic = cursor.fetchone()
 
     # Fetch doctor info
     doctor = None
     if doctor_id:
-        cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (doctor_id))
+        cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (doctor_id,))
         doctor = cursor.fetchone()
 
     cursor.close()
@@ -1218,7 +1219,7 @@ def search_appointments():
                OR a.symptoms LIKE %s
                OR a.appointment_date LIKE %s
             ORDER BY a.appointment_date, a.appointment_time
-        """, (f"%{search_term}%", f"%{search_term}%", f"%{search_term}%", f"%{search_term}%"))
+        """, (f"%{search_term}%", f"%{search_term}%", f"%{search_term}%", f"%{search_term}%",))
     else:
         # If no search term, show all appointments
         cursor.execute("""
@@ -1312,7 +1313,7 @@ def doctor_search_patients():
                 LOWER(TRIM(p.city)) LIKE %s
             )
             ORDER BY p.lastName, p.firstName
-        """, (doctor_id, search_query, search_query, search_query, search_query, search_query))
+        """, (doctor_id, search_query, search_query, search_query, search_query, search_query,))
     else:
         # If no query, return all patients for this doctor
         cursor.execute("""
@@ -1321,7 +1322,7 @@ def doctor_search_patients():
             FROM patient p
             WHERE p.doctorID = %s
             ORDER BY p.lastName, p.firstName
-        """, (doctor_id))
+        """, (doctor_id,))
 
     patients = cursor.fetchall()
     cursor.close()
@@ -1354,7 +1355,7 @@ def doctor_reports():
         FROM Reports r
         JOIN patient p ON r.patientID = p.USERID
         WHERE r.doctorID = %s
-    """, (doctor_id))
+    """, (doctor_id,))
 
     reports = cursor.fetchall()
     cursor.close()
@@ -1380,16 +1381,16 @@ def view_report(report_id):
     
     # Fetch report based on user type
     if user_type == 'patient':
-        cursor.execute("SELECT files FROM Reports WHERE reportID = %s AND patientID = %s", (report_id, user_id))
+        cursor.execute("SELECT files FROM Reports WHERE reportID = %s AND patientID = %s", (report_id, user_id,))
     elif user_type == 'doctor':
-        cursor.execute("SELECT files FROM Reports WHERE reportID = %s AND doctorID = %s", (report_id, user_id))
+        cursor.execute("SELECT files FROM Reports WHERE reportID = %s AND doctorID = %s", (report_id, user_id,))
     elif user_type == 'clinicadmin':
         clinic_id = session.get('clinicID')
         cursor.execute("""
             SELECT r.files FROM Reports r
             JOIN patient p ON r.patientID = p.USERID
             WHERE r.reportID = %s AND p.clinicID = %s
-        """, (report_id, clinic_id))
+        """, (report_id, clinic_id,))
     else:
         cursor.close()
         conn.close()
@@ -1447,7 +1448,7 @@ def doctor_search_reports():
             JOIN patient p ON r.patientID = p.USERID
             WHERE r.doctorID = %s AND MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
             ORDER BY r.reportDate DESC
-        """, (user_id, month_num, year_num))
+        """, (user_id, month_num, year_num,))
 
     # If user typed just "March"
     elif month_num:
@@ -1458,7 +1459,7 @@ def doctor_search_reports():
             JOIN patient p ON r.patientID = p.USERID
             WHERE r.doctorID = %s AND MONTH(r.reportDate) = %s
             ORDER BY r.reportDate DESC
-        """, (user_id, month_num))
+        """, (user_id, month_num,))
 
     # Generic keyword search (report ID, date, patient name)
     else:
@@ -1635,14 +1636,6 @@ def display_gradcam(img_path, model, last_conv_layer_name="last_conv"):
     plt.title(f"{pred_name} ({pred_prob:.1f}%)")
     plt.show()
 
-#get the x-ray from database method
-def get_xray(xray_id):
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT "
-    )
 def predict(file):
     img = load_img(file, target_size=(224,224))
     img_array = preprocess_input(file)
@@ -1782,19 +1775,19 @@ def doctor_report_generation():
     report_date = datetime.now()
 
     #get patient
-    cursor.execute("SELECT USERID, clinicID FROM patient WHERE CONCAT(firstName, ' ', lastName) = %s", (patient_name))
+    cursor.execute("SELECT USERID, clinicID FROM patient WHERE CONCAT(firstName, ' ', lastName) = %s", (patient_name,))
     patient_row = cursor.fetchone()
     patient_id = patient_row[0]
     clinic_id = patient_row[1]
 
     #get symptoms
-    cursor.execute("SELECT symptoms FROM appointments WHERE patientID = %s ORDER BY appointment_date DESC, appointment_time DESC LIMIT 1", (patient_id))
+    cursor.execute("SELECT symptoms FROM appointments WHERE patientID = %s ORDER BY appointment_date DESC, appointment_time DESC LIMIT 1", (patient_id,))
     patient_symptoms = cursor.fetchone()[0] or 'N/A'
     
     #get clinic information
     clinic = None
     if clinic_id:
-        cursor.execute("SELECT clinicName, city, province, postalCode FROM clinic WHERE clinicID = %s", (clinic_id))
+        cursor.execute("SELECT clinicName, city, province, postalCode FROM clinic WHERE clinicID = %s", (clinic_id,))
         clinic_row = cursor.fetchone()
         if clinic_row:
             clinic = {
@@ -1805,7 +1798,7 @@ def doctor_report_generation():
             }
     
     #get x-ray
-    cursor.execute("SELECT files FROM Xrays WHERE patientID = %s ORDER BY date DESC LIMIT 1", (patient_id))
+    cursor.execute("SELECT files FROM Xrays WHERE patientID = %s ORDER BY date DESC LIMIT 1", (patient_id,))
     #xray = cursor.fetchone()[0]
     #cursor.execute("SELECT files FROM xrays WHERE xrayID = %s", (xray_id,))
     file = cursor.fetchone()
@@ -1831,7 +1824,7 @@ def doctor_report_generation():
                        (patient_id, doctor_id, report_date, report_expiry_date, report_pdf))
     
     conn.commit()
-    cursor.execute("SELECT reportID FROM Reports WHERE patientID = %s ORDER BY reportDate DESC LIMIT 1",(patient_id))
+    cursor.execute("SELECT reportID FROM Reports WHERE patientID = %s ORDER BY reportDate DESC LIMIT 1",(patient_id,))
     row = cursor.fetchone()
     report_id = row[0]
     notify_patient(conn, patient_id,doctor_id, "REPORT_READY", report_id)
@@ -1912,7 +1905,7 @@ def doctor_account():
     cursor = conn.cursor(dictionary=True)
 
     # Always fetch current info to display
-    cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id))
+    cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id,))
     doctor = cursor.fetchone()
 
     if request.method == 'POST':
@@ -1968,7 +1961,7 @@ def admin_appointments():
         LEFT JOIN doctor d ON a.doctorID = d.USERID
         WHERE a.clinicID = %s
         ORDER BY a.appointment_date, a.appointment_time 
-    """, (clinic_id))
+    """, (clinic_id,))
     appointments = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -2011,7 +2004,7 @@ def admin_manage_appointment(appointment_id):
         JOIN patient p ON a.patientID = p.USERID
         LEFT JOIN doctor d ON a.doctorID = d.USERID
         WHERE a.apptID = %s AND a.clinicID = %s
-    """, (appointment_id, clinic_id))
+    """, (appointment_id, clinic_id,))
     appointment = cursor.fetchone()
 
     if not appointment:
@@ -2034,7 +2027,7 @@ def admin_manage_appointment(appointment_id):
         doctor_id = appointment.get('doctorID') if isinstance(appointment, dict) else None
 
         if doctor_id and new_date and new_time:
-            cursor.execute("SELECT apptID FROM appointments WHERE doctorID = %s AND appointment_date = %s AND appointment_time = %s AND apptID != %s", (doctor_id, new_date, new_time, appointment_id))
+            cursor.execute("SELECT apptID FROM appointments WHERE doctorID = %s AND appointment_date = %s AND appointment_time = %s AND apptID != %s", (doctor_id, new_date, new_time, appointment_id,))
             if cursor.fetchone():
                 cursor.close()
                 conn.close()
@@ -2107,7 +2100,7 @@ def admin_delete_appointment():
     cursor = conn.cursor()
     
     # Verify appointment belongs to this clinic before deleting
-    cursor.execute("SELECT apptID FROM appointments WHERE apptID = %s AND clinicID = %s", (appointment_id, clinic_id))
+    cursor.execute("SELECT apptID FROM appointments WHERE apptID = %s AND clinicID = %s", (appointment_id, clinic_id,))
     appointment = cursor.fetchone()
     
     if not appointment:
@@ -2168,7 +2161,7 @@ def clinic_manage_clinic():
         FROM clinic c
         LEFT JOIN clinicadmin ca ON c.clinicID = ca.clinicID
         WHERE c.clinicID = %s
-    """, (clinic_id))
+    """, (clinic_id,))
     clinic = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -2215,7 +2208,7 @@ def admin_managereports():
         WHERE p.clinicID = %s
         {order_clause}
     """
-    cursor.execute(query, (clinic_id))
+    cursor.execute(query, (clinic_id,))
     
     reports = cursor.fetchall()
     cursor.close()
@@ -2262,7 +2255,7 @@ def admin_book_appointment():
         # Check for conflict (same doctor, same date/time)
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
-        cursor.execute("SELECT apptID FROM appointments WHERE doctorID = %s AND appointment_date = %s AND appointment_time = %s", (doctor_id, appointment_date, appointment_time))
+        cursor.execute("SELECT apptID FROM appointments WHERE doctorID = %s AND appointment_date = %s AND appointment_time = %s", (doctor_id, appointment_date, appointment_time,))
         if cursor.fetchone():
             cursor.close()
             conn.close()
@@ -2293,11 +2286,11 @@ def admin_book_appointment():
     cursor = conn.cursor(dictionary=True)
     
     # Fetch patients for this clinic
-    cursor.execute("SELECT USERID, firstName, lastName FROM patient WHERE clinicID = %s ORDER BY lastName, firstName", (clinic_id))
+    cursor.execute("SELECT USERID, firstName, lastName FROM patient WHERE clinicID = %s ORDER BY lastName, firstName", (clinic_id,))
     patients = cursor.fetchall()
     
     # Fetch doctors for this clinic
-    cursor.execute("SELECT USERID, firstName, lastName FROM doctor WHERE clinicID = %s ORDER BY lastName, firstName", (clinic_id))
+    cursor.execute("SELECT USERID, firstName, lastName FROM doctor WHERE clinicID = %s ORDER BY lastName, firstName", (clinic_id,))
     doctors = cursor.fetchall()
     
     cursor.close()
@@ -2359,7 +2352,7 @@ def search():
                 JOIN patient p ON a.patientID = p.USERID
                 WHERE MONTH(a.appointment_date) = %s AND YEAR(a.appointment_date) = %s
                   AND a.patientID = %s
-            """, (month_num, year_num, user_id))
+            """, (month_num, year_num, user_id,))
         elif month_num:
             cursor.execute("""
                 SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
@@ -2368,7 +2361,7 @@ def search():
                 JOIN patient p ON a.patientID = p.USERID
                 WHERE MONTH(a.appointment_date) = %s
                   AND a.patientID = %s
-            """, (month_num, user_id))
+            """, (month_num, user_id,))
         else:
             cursor.execute("""
                 SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
@@ -2377,7 +2370,7 @@ def search():
                 JOIN patient p ON a.patientID = p.USERID
                 WHERE (a.symptoms LIKE %s OR a.appointment_date LIKE %s)
                   AND a.patientID = %s
-            """, (f"%{query}%", f"%{query}%", user_id))
+            """, (f"%{query}%", f"%{query}%", user_id,))
         appointments = cursor.fetchall()
     elif user_type == 'doctor':
         # Only appointments for this doctor
@@ -2389,7 +2382,7 @@ def search():
                 JOIN patient p ON a.patientID = p.USERID
                 WHERE MONTH(a.appointment_date) = %s AND YEAR(a.appointment_date) = %s
                   AND a.doctorID = %s
-            """, (month_num, year_num, user_id))
+            """, (month_num, year_num, user_id,))
         elif month_num:
             cursor.execute("""
                 SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
@@ -2398,7 +2391,7 @@ def search():
                 JOIN patient p ON a.patientID = p.USERID
                 WHERE MONTH(a.appointment_date) = %s
                   AND a.doctorID = %s
-            """, (month_num, user_id))
+            """, (month_num, user_id,))
         else:
             
             cursor.execute("""
@@ -2408,7 +2401,7 @@ def search():
                 JOIN patient p ON a.patientID = p.USERID
                 WHERE (a.symptoms LIKE %s OR a.appointment_date LIKE %s OR p.firstName LIKE %s OR p.lastName LIKE %s)
                   AND a.doctorID = %s
-            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", user_id))
+            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", user_id,))
         appointments = cursor.fetchall()
     elif user_type == 'clinicadmin':
         # Only appointments for this clinic
@@ -2420,7 +2413,7 @@ def search():
                 JOIN patient p ON a.patientID = p.USERID
                 WHERE MONTH(a.appointment_date) = %s AND YEAR(a.appointment_date) = %s
                   AND a.clinicID = %s
-            """, (month_num, year_num, clinic_id))
+            """, (month_num, year_num, clinic_id,))
         elif month_num:
             cursor.execute("""
                 SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
@@ -2429,7 +2422,7 @@ def search():
                 JOIN patient p ON a.patientID = p.USERID
                 WHERE MONTH(a.appointment_date) = %s
                   AND a.clinicID = %s
-            """, (month_num, clinic_id))
+            """, (month_num, clinic_id,))
         else:
             cursor.execute("""
                 SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
@@ -2438,7 +2431,7 @@ def search():
                 JOIN patient p ON a.patientID = p.USERID
                 WHERE (a.symptoms LIKE %s OR a.appointment_date LIKE %s OR p.firstName LIKE %s OR p.lastName LIKE %s)
                   AND a.clinicID = %s
-            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", clinic_id))
+            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", clinic_id,))
         appointments = cursor.fetchall()
     else:
         # Default: show all
@@ -2449,7 +2442,7 @@ def search():
                 FROM appointments a
                 JOIN patient p ON a.patientID = p.USERID
                 WHERE MONTH(a.appointment_date) = %s AND YEAR(a.appointment_date) = %s
-            """, (month_num, year_num))
+            """, (month_num, year_num,))
         elif month_num:
             cursor.execute("""
                 SELECT a.apptID, a.patientID, a.appointment_date, a.appointment_time, a.doctorID, a.symptoms,
@@ -2466,7 +2459,7 @@ def search():
                 FROM appointments a
                 JOIN patient p ON a.patientID = p.USERID
                 WHERE a.symptoms LIKE %s OR a.appointment_date LIKE %s OR p.firstName LIKE %s OR p.lastName LIKE %s
-            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%",))
         appointments = cursor.fetchall()
 
     # --- REPORTS ---
@@ -2480,7 +2473,7 @@ def search():
                 JOIN patient p ON r.patientID = p.USERID
                 JOIN doctor d ON r.doctorID = d.USERID
                 WHERE MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s AND r.patientID = %s
-            """, (month_num, year_num, user_id))
+            """, (month_num, year_num, user_id,))
         elif month_num:
             cursor.execute("""
                 SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
@@ -2490,7 +2483,7 @@ def search():
                 JOIN patient p ON r.patientID = p.USERID
                 JOIN doctor d ON r.doctorID = d.USERID
                 WHERE MONTH(r.reportDate) = %s AND r.patientID = %s
-            """, (month_num, user_id))
+            """, (month_num, user_id,))
         else:
             cursor.execute("""
                 SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
@@ -2505,7 +2498,7 @@ def search():
                     OR r.reportDate LIKE %s
                 )
                 AND r.patientID = %s
-            """, (f"%{query}%", f"%{query}%", f"%{query}%", user_id))
+            """, (f"%{query}%", f"%{query}%", f"%{query}%", user_id,))
         reports = cursor.fetchall()
     elif user_type == 'doctor':
         # Only reports for this doctor
@@ -2518,7 +2511,7 @@ def search():
                 JOIN patient p ON r.patientID = p.USERID
                 JOIN doctor d ON r.doctorID = d.USERID
                 WHERE MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s AND r.doctorID = %s
-            """, (month_num, year_num, user_id))
+            """, (month_num, year_num, user_id,))
         elif month_num:
             cursor.execute("""
                 SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
@@ -2528,7 +2521,7 @@ def search():
                 JOIN patient p ON r.patientID = p.USERID
                 JOIN doctor d ON r.doctorID = d.USERID
                 WHERE MONTH(r.reportDate) = %s AND r.doctorID = %s
-            """, (month_num, user_id))
+            """, (month_num, user_id,))
         else:
           
             cursor.execute("""
@@ -2546,7 +2539,7 @@ def search():
                     OR p.lastName LIKE %s
                 )
                 AND r.doctorID = %s
-            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", user_id))
+            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", user_id,))
         reports = cursor.fetchall()
     elif user_type == 'clinicadmin':
         # Only reports for this clinic 
@@ -2559,7 +2552,7 @@ def search():
                 JOIN patient p ON r.patientID = p.USERID
                 JOIN doctor d ON r.doctorID = d.USERID
                 WHERE MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s AND p.clinicID = %s
-            """, (month_num, year_num, clinic_id))
+            """, (month_num, year_num, clinic_id,))
         elif month_num:
             cursor.execute("""
                 SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
@@ -2569,7 +2562,7 @@ def search():
                 JOIN patient p ON r.patientID = p.USERID
                 JOIN doctor d ON r.doctorID = d.USERID
                 WHERE MONTH(r.reportDate) = %s AND p.clinicID = %s
-            """, (month_num, clinic_id))
+            """, (month_num, clinic_id,))
         else:
         
             cursor.execute("""
@@ -2587,7 +2580,7 @@ def search():
                     OR p.lastName LIKE %s
                 )
                 AND p.clinicID = %s
-            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", clinic_id))
+            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", clinic_id,))
         reports = cursor.fetchall()
     else:
         # Default: show all
@@ -2601,7 +2594,7 @@ def search():
                
                 JOIN doctor d ON r.doctorID = d.USERID
                 WHERE MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
-            """, (month_num, year_num))
+            """, (month_num, year_num,))
         elif month_num:
             cursor.execute("""
                 SELECT r.reportID, r.patientID, r.doctorID, r.reportDate,
@@ -2627,7 +2620,7 @@ def search():
                     OR r.reportDate LIKE %s
                     OR p.firstName LIKE %s
                     OR p.lastName LIKE %s
-            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+            """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%",))
         reports = cursor.fetchall()
 
     # --- PATIENTS (for doctor and clinicadmin) ---
@@ -2637,7 +2630,7 @@ def search():
             SELECT USERID, firstName, lastName, email, phone, dateofbirth
             FROM patient
             WHERE firstName LIKE %s OR lastName LIKE %s OR email LIKE %s OR phone LIKE %s
-        """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+        """, (f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%",))
         patients = cursor.fetchall()
     elif user_type == 'clinicadmin':
         cursor.execute("""
@@ -2646,7 +2639,7 @@ def search():
             WHERE clinicID = %s AND (
                 firstName LIKE %s OR lastName LIKE %s OR email LIKE %s OR phone LIKE %s
             )
-        """, (clinic_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+        """, (clinic_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%",))
         patients = cursor.fetchall()
 
     cursor.close()
@@ -2879,13 +2872,14 @@ def admin_delete_report():
     # Verify the report belongs to this clinic
     clinic_id = session.get('clinicID')
     cursor.execute("""
-        SELECT r.reportID 
+        SELECT r.reportID, r.patientID, r.doctorID
         FROM Reports r
         JOIN patient p ON r.patientID = p.USERID
         WHERE r.reportID = %s AND p.clinicID = %s
-    """, (report_id, clinic_id))
+    """, (report_id, clinic_id,))
     
     report = cursor.fetchone()
+    
     if not report:
         flash("Report not found or access denied.", "danger")
         cursor.close()
@@ -2893,11 +2887,10 @@ def admin_delete_report():
         return redirect(url_for('admin_managereports'))
     
     # Delete the report
-    cursor.execute("SELECT patientID FROM Reports WHERE reportID = %s", (report_id))
-    patient_id = cursor.fetchone()
-    cursor.execute("SELECT doctorID FROM Reports WHERE reportID = %s", (report_id))
-    doctor_id = cursor.fetchone()
-    cursor.execute("DELETE FROM Reports WHERE reportID = %s", (report_id))
+    patient_id = report["patientID"]
+    doctor_id = report["doctorID"]
+    cursor.execute("DELETE FROM Reports WHERE reportID = %s", (report_id,))
+    conn.commit()
     notify_patient(conn,patient_id,doctor_id,"REPORT_DELETED")
     notify_doctor(conn,doctor_id,"REPORT_DELETED",patient_id,report_id)
     conn.commit()
@@ -2961,7 +2954,7 @@ def admin_search_reports():
             WHERE p.clinicID = %s AND MONTH(r.reportDate) = %s AND YEAR(r.reportDate) = %s
             {order_clause}
         """
-        cursor.execute(query_sql, (clinic_id, month_num, year_num))
+        cursor.execute(query_sql, (clinic_id, month_num, year_num,))
     elif month_num:
         # Search by month only
         query_sql = f"""
@@ -2974,7 +2967,7 @@ def admin_search_reports():
             WHERE p.clinicID = %s AND MONTH(r.reportDate) = %s
             {order_clause}
         """
-        cursor.execute(query_sql, (clinic_id, month_num))
+        cursor.execute(query_sql, (clinic_id, month_num,))
     else:
         # Regular text search in report ID, date, patient name, or doctor name
         query_sql = f"""
@@ -2995,7 +2988,7 @@ def admin_search_reports():
             )
             {order_clause}
         """
-        cursor.execute(query_sql, (clinic_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%"))
+        cursor.execute(query_sql, (clinic_id, f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%", f"%{query}%",))
     
     reports = cursor.fetchall()
     cursor.close()
@@ -3150,14 +3143,14 @@ def clinic_manage_user(user_id):
         return redirect(url_for('clinic_manage_accounts'))
 
     # GET: try doctor then patient - fetch full row so templates can prefill all fields
-    cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id))
+    cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id,))
     account = cursor.fetchone()
     if account:
         # normalize keys for template
         account['id'] = account.get('USERID')
         account['userType'] = 'doctor'
     else:
-        cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id))
+        cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id,))
         account = cursor.fetchone()
         if account:
             account['id'] = account.get('USERID')
@@ -3193,11 +3186,11 @@ def clinic_delete_user():
     cursor = conn.cursor()
     try:
         # check doctor table
-        cursor.execute("SELECT USERID FROM doctor WHERE USERID = %s", (user_id))
+        cursor.execute("SELECT USERID FROM doctor WHERE USERID = %s", (user_id,))
         if cursor.fetchone():
             cursor.execute("DELETE FROM doctor WHERE USERID = %s", (user_id))
         else:
-            cursor.execute("SELECT USERID FROM patient WHERE USERID = %s", (user_id))
+            cursor.execute("SELECT USERID FROM patient WHERE USERID = %s", (user_id,))
             if cursor.fetchone():
                 cursor.execute("DELETE FROM patient WHERE USERID = %s", (user_id))
             else:
