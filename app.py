@@ -469,7 +469,7 @@ def patient_cancel_appointment():
     cursor = conn.cursor()
     
     # Verify the appointment belongs to this patient before deleting
-    cursor.execute("SELECT apptID FROM appointments WHERE apptID = %s AND patientID = %s", (appointment_id, user_id,))
+    cursor.execute("SELECT apptID FROM appointments WHERE apptID = %s AND patientID = %s", (appointment_id, user_id))
     appointment = cursor.fetchone()
     
     if not appointment:
@@ -3188,11 +3188,11 @@ def clinic_delete_user():
         # check doctor table
         cursor.execute("SELECT USERID FROM doctor WHERE USERID = %s", (user_id,))
         if cursor.fetchone():
-            cursor.execute("DELETE FROM doctor WHERE USERID = %s", (user_id))
+            cursor.execute("DELETE FROM doctor WHERE USERID = %s", (user_id,))
         else:
             cursor.execute("SELECT USERID FROM patient WHERE USERID = %s", (user_id,))
             if cursor.fetchone():
-                cursor.execute("DELETE FROM patient WHERE USERID = %s", (user_id))
+                cursor.execute("DELETE FROM patient WHERE USERID = %s", (user_id,))
             else:
                 flash('Account not found.', 'warning')
                 cursor.close()
@@ -3201,7 +3201,7 @@ def clinic_delete_user():
 
         # Also remove login entry if exists
         try:
-            cursor.execute("DELETE FROM login WHERE USERID = %s", (user_id))
+            cursor.execute("DELETE FROM login WHERE USERID = %s", (user_id,))
         except Exception:
             pass
 
