@@ -66,7 +66,7 @@ def notify_patient(conn, patient_id, doctor_id, event_type, related_id=None):
                    SELECT firstName, email, notification_email, 
                    notifications_enabled 
                    FROM patient WHERE USERID = %s
-    """,(patient_id,))
+    """,(patient_id))
     patient = cursor.fetchone()
 
     if not patient:
@@ -91,9 +91,9 @@ def notify_patient(conn, patient_id, doctor_id, event_type, related_id=None):
     #send email bast on event type 
     first_name = patient["firstName"]
     if event_type == "ACCOUNT_CREATED":
-        cursor.execute("""SELECT clinicID FROM patient WHERE USERID = %s""", (patient_id,))
+        cursor.execute("""SELECT clinicID FROM patient WHERE USERID = %s""", (patient_id))
         clinic_id = cursor.fetchone()
-        cursor.execute("""SELECT clinicName FROM clinic WHERE clinicID = %s""",(clinic_id,))
+        cursor.execute("""SELECT clinicName FROM clinic WHERE clinicID = %s""",(clinic_id))
         clinic = cursor.fetchone()
         subject = "Welcome to DeepChest!"
         body_text = f"""Welcome {first_name}, Your account has been successfully created for {clinic} clinic. You can now log in to DeepChest.
@@ -136,7 +136,7 @@ def notify_doctor(conn,doctor_id,event_type, patient_id = None, related_id=None)
      cursor.execute("""
                    SELECT firstName, lastName, email
                    FROM doctor WHERE USERID = %s
-    """,(doctor_id,))
+    """,(doctor_id))
      doctor = cursor.fetchone()
 
      if not doctor:
@@ -160,7 +160,7 @@ def notify_doctor(conn,doctor_id,event_type, patient_id = None, related_id=None)
                         Your account information has been updated. 
                       """)
      elif event_type == "REPORT_DELETED":
-        cursor.execute("SELECT firstName FROM patient WHERE patientID=%s",(patient_id,))
+        cursor.execute("SELECT firstName FROM patient WHERE patientID=%s",(patient_id))
         patient_firstname=cursor.fetchone()
         subject=(""" New Appoinment """)
         body_text=(f"""Dear Dr.{first_name}, a report status has been updated. n\
@@ -169,7 +169,7 @@ def notify_doctor(conn,doctor_id,event_type, patient_id = None, related_id=None)
                     Status: Expired or Deleted
                 """)
      elif event_type == "APPOINTMENT_BOOKED":
-        cursor.execute(""" SELECT appointment_date, appointment_time FROM appointments WHERE apptID = %s and doctorID = %s""", (related_id, doctor_id,))
+        cursor.execute(""" SELECT appointment_date, appointment_time FROM appointments WHERE apptID = %s and doctorID = %s""", (related_id, doctor_id))
         appt = cursor.fetchone()
         cursor.execute("SELECT firstName, lastName FROM patient WHERE patientID =%s",(patient_id))
         patient_name = cursor.fetchone()
@@ -360,7 +360,7 @@ def signup():
         )
        
         conn.commit()
-        cursor.execute("SELECT USERID FROM login WHERE username=%s", (username,))
+        cursor.execute("SELECT USERID FROM login WHERE username=%s", (username))
         user = cursor.fetchone()
         user_id = user[0] if user else None
 
@@ -419,7 +419,7 @@ def patient_appointments():
         JOIN doctor d ON a.doctorID = d.USERID
         WHERE a.patientID = %s
         ORDER BY a.appointment_date, a.appointment_time
-    """, (user_id,))
+    """, (user_id))
     appointments = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -620,7 +620,7 @@ def patient_book_appointment():
         # Fetch patient's doctor and clinic
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
-        cursor.execute("SELECT doctorID, clinicID FROM patient WHERE USERID = %s", (user_id,))
+        cursor.execute("SELECT doctorID, clinicID FROM patient WHERE USERID = %s", (user_id))
         prow = cursor.fetchone()
         doctor_id = None
         clinic_id = None
@@ -662,7 +662,7 @@ def patient_book_appointment():
     # GET: render calendar with patient's existing appointment dates
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT appointment_date FROM appointments WHERE patientID = %s", (user_id,))
+    cursor.execute("SELECT DISTINCT appointment_date FROM appointments WHERE patientID = %s", (user_id))
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -694,7 +694,7 @@ def patient_booked_times():
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
     # get doctor for this patient
-    cursor.execute("SELECT doctorID FROM patient WHERE USERID = %s", (user_id,))
+    cursor.execute("SELECT doctorID FROM patient WHERE USERID = %s", (user_id))
     prow = cursor.fetchone()
     doctor_id = None
     if prow:
@@ -745,7 +745,7 @@ def patient_reports():
             JOIN doctor d ON r.doctorID = d.USERID
             WHERE r.patientID = %s
             ORDER BY r.reportDate DESC
-        """, (user_id,))
+        """, (user_id))
         reports = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -872,7 +872,7 @@ def patient_messages():
 
         clinic_id = session.get('clinicID')
         if clinic_id:
-            cursor.execute('SELECT USERID, firstName, lastName FROM doctor WHERE clinicID = %s', (clinic_id,))
+            cursor.execute('SELECT USERID, firstName, lastName FROM doctor WHERE clinicID = %s', (clinic_id))
         else:
             cursor.execute('SELECT USERID, firstName, lastName FROM doctor')
         doctors = cursor.fetchall()
@@ -966,7 +966,7 @@ def patient_account():
         flash('Account updated successfully!')
         notify_patient(conn, user_id, None, "ACCOUNT_UPDATED")
         # Re-fetch updated info for display
-    cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id,))
+    cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id))
     patient = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -1088,7 +1088,7 @@ def add_child():
     cursor = conn.cursor(dictionary=True)
 
     # Fetch patient info
-    cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id,))
+    cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id))
     patient = cursor.fetchone()
 
     # Determine clinicID and doctorID (prefer patient table values)
@@ -1107,13 +1107,13 @@ def add_child():
     # Fetch clinic info
     clinic = None
     if clinic_id:
-        cursor.execute("SELECT * FROM clinic WHERE clinicID = %s", (clinic_id,))
+        cursor.execute("SELECT * FROM clinic WHERE clinicID = %s", (clinic_id))
         clinic = cursor.fetchone()
 
     # Fetch doctor info
     doctor = None
     if doctor_id:
-        cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (doctor_id,))
+        cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (doctor_id))
         doctor = cursor.fetchone()
 
     cursor.close()
@@ -1321,7 +1321,7 @@ def doctor_search_patients():
             FROM patient p
             WHERE p.doctorID = %s
             ORDER BY p.lastName, p.firstName
-        """, (doctor_id,))
+        """, (doctor_id))
 
     patients = cursor.fetchall()
     cursor.close()
@@ -1354,7 +1354,7 @@ def doctor_reports():
         FROM Reports r
         JOIN patient p ON r.patientID = p.USERID
         WHERE r.doctorID = %s
-    """, (doctor_id,))
+    """, (doctor_id))
 
     reports = cursor.fetchall()
     cursor.close()
@@ -1782,19 +1782,19 @@ def doctor_report_generation():
     report_date = datetime.now()
 
     #get patient
-    cursor.execute("SELECT USERID, clinicID FROM patient WHERE CONCAT(firstName, ' ', lastName) = %s", (patient_name,))
+    cursor.execute("SELECT USERID, clinicID FROM patient WHERE CONCAT(firstName, ' ', lastName) = %s", (patient_name))
     patient_row = cursor.fetchone()
     patient_id = patient_row[0]
     clinic_id = patient_row[1]
 
     #get symptoms
-    cursor.execute("SELECT symptoms FROM appointments WHERE patientID = %s ORDER BY appointment_date DESC, appointment_time DESC LIMIT 1", (patient_id,))
+    cursor.execute("SELECT symptoms FROM appointments WHERE patientID = %s ORDER BY appointment_date DESC, appointment_time DESC LIMIT 1", (patient_id))
     patient_symptoms = cursor.fetchone()[0] or 'N/A'
     
     #get clinic information
     clinic = None
     if clinic_id:
-        cursor.execute("SELECT clinicName, city, province, postalCode FROM clinic WHERE clinicID = %s", (clinic_id,))
+        cursor.execute("SELECT clinicName, city, province, postalCode FROM clinic WHERE clinicID = %s", (clinic_id))
         clinic_row = cursor.fetchone()
         if clinic_row:
             clinic = {
@@ -1805,7 +1805,7 @@ def doctor_report_generation():
             }
     
     #get x-ray
-    cursor.execute("SELECT files FROM Xrays WHERE patientID = %s ORDER BY date DESC LIMIT 1", (patient_id,))
+    cursor.execute("SELECT files FROM Xrays WHERE patientID = %s ORDER BY date DESC LIMIT 1", (patient_id))
     #xray = cursor.fetchone()[0]
     #cursor.execute("SELECT files FROM xrays WHERE xrayID = %s", (xray_id,))
     file = cursor.fetchone()
@@ -1831,7 +1831,7 @@ def doctor_report_generation():
                        (patient_id, doctor_id, report_date, report_expiry_date, report_pdf))
     
     conn.commit()
-    cursor.execute("SELECT reportID FROM Reports WHERE patientID = %s ORDER BY reportDate DESC LIMIT 1",(patient_id,))
+    cursor.execute("SELECT reportID FROM Reports WHERE patientID = %s ORDER BY reportDate DESC LIMIT 1",(patient_id))
     row = cursor.fetchone()
     report_id = row[0]
     notify_patient(conn, patient_id,doctor_id, "REPORT_READY", report_id)
@@ -1912,7 +1912,7 @@ def doctor_account():
     cursor = conn.cursor(dictionary=True)
 
     # Always fetch current info to display
-    cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id,))
+    cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id))
     doctor = cursor.fetchone()
 
     if request.method == 'POST':
@@ -1968,7 +1968,7 @@ def admin_appointments():
         LEFT JOIN doctor d ON a.doctorID = d.USERID
         WHERE a.clinicID = %s
         ORDER BY a.appointment_date, a.appointment_time 
-    """, (clinic_id,))
+    """, (clinic_id))
     appointments = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -2168,7 +2168,7 @@ def clinic_manage_clinic():
         FROM clinic c
         LEFT JOIN clinicadmin ca ON c.clinicID = ca.clinicID
         WHERE c.clinicID = %s
-    """, (clinic_id,))
+    """, (clinic_id))
     clinic = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -2215,7 +2215,7 @@ def admin_managereports():
         WHERE p.clinicID = %s
         {order_clause}
     """
-    cursor.execute(query, (clinic_id,))
+    cursor.execute(query, (clinic_id))
     
     reports = cursor.fetchall()
     cursor.close()
@@ -2293,11 +2293,11 @@ def admin_book_appointment():
     cursor = conn.cursor(dictionary=True)
     
     # Fetch patients for this clinic
-    cursor.execute("SELECT USERID, firstName, lastName FROM patient WHERE clinicID = %s ORDER BY lastName, firstName", (clinic_id,))
+    cursor.execute("SELECT USERID, firstName, lastName FROM patient WHERE clinicID = %s ORDER BY lastName, firstName", (clinic_id))
     patients = cursor.fetchall()
     
     # Fetch doctors for this clinic
-    cursor.execute("SELECT USERID, firstName, lastName FROM doctor WHERE clinicID = %s ORDER BY lastName, firstName", (clinic_id,))
+    cursor.execute("SELECT USERID, firstName, lastName FROM doctor WHERE clinicID = %s ORDER BY lastName, firstName", (clinic_id))
     doctors = cursor.fetchall()
     
     cursor.close()
@@ -2897,7 +2897,7 @@ def admin_delete_report():
     patient_id = cursor.fetchone()
     cursor.execute("SELECT doctorID FROM Reports WHERE reportID = %s", (report_id))
     doctor_id = cursor.fetchone()
-    cursor.execute("DELETE FROM Reports WHERE reportID = %s", (report_id,))
+    cursor.execute("DELETE FROM Reports WHERE reportID = %s", (report_id))
     notify_patient(conn,patient_id,doctor_id,"REPORT_DELETED")
     notify_doctor(conn,doctor_id,"REPORT_DELETED",patient_id,report_id)
     conn.commit()
@@ -3150,14 +3150,14 @@ def clinic_manage_user(user_id):
         return redirect(url_for('clinic_manage_accounts'))
 
     # GET: try doctor then patient - fetch full row so templates can prefill all fields
-    cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id,))
+    cursor.execute("SELECT * FROM doctor WHERE USERID = %s", (user_id))
     account = cursor.fetchone()
     if account:
         # normalize keys for template
         account['id'] = account.get('USERID')
         account['userType'] = 'doctor'
     else:
-        cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id,))
+        cursor.execute("SELECT * FROM patient WHERE USERID = %s", (user_id))
         account = cursor.fetchone()
         if account:
             account['id'] = account.get('USERID')
@@ -3193,13 +3193,13 @@ def clinic_delete_user():
     cursor = conn.cursor()
     try:
         # check doctor table
-        cursor.execute("SELECT USERID FROM doctor WHERE USERID = %s", (user_id,))
+        cursor.execute("SELECT USERID FROM doctor WHERE USERID = %s", (user_id))
         if cursor.fetchone():
-            cursor.execute("DELETE FROM doctor WHERE USERID = %s", (user_id,))
+            cursor.execute("DELETE FROM doctor WHERE USERID = %s", (user_id))
         else:
-            cursor.execute("SELECT USERID FROM patient WHERE USERID = %s", (user_id,))
+            cursor.execute("SELECT USERID FROM patient WHERE USERID = %s", (user_id))
             if cursor.fetchone():
-                cursor.execute("DELETE FROM patient WHERE USERID = %s", (user_id,))
+                cursor.execute("DELETE FROM patient WHERE USERID = %s", (user_id))
             else:
                 flash('Account not found.', 'warning')
                 cursor.close()
@@ -3208,7 +3208,7 @@ def clinic_delete_user():
 
         # Also remove login entry if exists
         try:
-            cursor.execute("DELETE FROM login WHERE USERID = %s", (user_id,))
+            cursor.execute("DELETE FROM login WHERE USERID = %s", (user_id))
         except Exception:
             pass
 
