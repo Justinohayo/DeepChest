@@ -3173,7 +3173,7 @@ def clinic_manage_user(user_id):
 # Clinic admin: delete user
 @app.route('/admin/delete_user', methods=['POST'])
 def clinic_delete_user():
-    if session.get('userType') != 'clinic_admin':
+    if session.get('userType') != 'clinicadmin':
         return redirect(url_for('login'))
     user_id = request.form.get('user_id')
     try:
