@@ -2893,7 +2893,7 @@ def admin_delete_report():
         return redirect(url_for('admin_managereports'))
     
     # Delete the report
-    cursor.execute("SELECT patientID FROM Reports WHERE reportID = %s", (report_id,))
+    cursor.execute("SELECT patientID FROM Reports WHERE reportID = %s", (report_id))
     patient_id = cursor.fetchone()
     cursor.execute("SELECT doctorID FROM Reports WHERE reportID = %s", (report_id))
     doctor_id = cursor.fetchone()
