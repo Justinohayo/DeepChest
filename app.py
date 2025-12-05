@@ -86,12 +86,12 @@ def notify_patient(conn, patient_id, doctor_id, event_type, related_id=None):
         INSERT INTO notifications (patientID, doctorID, event_type, relatedID, expiryDate)
                    VALUES (%s, %s, %s, %s, %s)
     """,(patient["USERID"], doctor_id, event_type, related_id, expiry_date))
-    conn.commit()
 
+    conn.commit()
     #send email bast on event type 
     first_name = patient["firstName"]
     if event_type == "ACCOUNT_CREATED":
-        cursor.execute("""SELECT clinicName FROM patient WHERE USERID = %s""", (patient["clinicID"],))
+        cursor.execute("""SELECT clinicName FROM patient WHERE USERID = %s""", (patient["patientID"],))
         clinic_row = cursor.fetchone()
         clinic_name = clinic_row["clinicName"]
         #cursor.execute("""SELECT clinicName FROM clinic WHERE clinicID = %s""",(clinic_id,))
