@@ -2727,7 +2727,7 @@ def patient_reports_search():
     report = cursor.fetchone()
     cursor.close()
     conn.close()
-    return render_template('patient/reportdetails.html', report=report)
+    return render_template('patient/myreports.html', report=report)
 
 # Report route for doctor to view report details on reports page
 @app.route('/doctor/reports/detail')
@@ -2766,7 +2766,7 @@ def admin_reports_search():
     if not report:
         flash("Report not found.", "danger")
         return redirect(url_for('admin_managereports'))
-    return render_template('clinic_admin/reportdetails.html', report=report)
+    return render_template('clinic_admin/ManageReports.html', report=report)
 
 # Helper function to check and delete expired reports
 def delete_expired_reports():
