@@ -25,7 +25,7 @@ CREATE TABLE `login` (
   `userType` varchar(15) NOT NULL,
   `clinicID` int(255) NOT NULL,
     PRIMARY KEY(USERID),
-    FOREIGN KEY (clinicID) REFERENCES clinic(clinicID)
+    FOREIGN KEY (clinicID) REFERENCES clinic(clinicID) ON DELETE CASCADE ON UPDATE CASCADE
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds rows of data to the login table for each user type
@@ -46,7 +46,7 @@ CREATE TABLE `doctor` (
   `USERID` int(255) NOT NULL,
    `clinicID` int(255) NOT NULL,
    PRIMARY KEY (USERID),
-    FOREIGN KEY (USERID) REFERENCES login(USERID)
+    FOREIGN KEY (USERID) REFERENCES login(USERID) ON DELETE CASCADE ON UPDATE CASCADE
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the doctor table
@@ -74,9 +74,9 @@ CREATE TABLE `patient`(
      `notifications_enabled` BOOLEAN DEFAULT FALSE,
      `notification_email` varchar(255),
     PRIMARY KEY (USERID),
-    FOREIGN KEY (USERID) REFERENCES login(USERID),
-    FOREIGN KEY (doctorID) REFERENCES doctor(USERID),
-    FOREIGN KEY (clinicID) REFERENCES clinic(clinicID)
+    FOREIGN KEY (USERID) REFERENCES login(USERID) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (doctorID) REFERENCES doctor(USERID) ON DELETE SET NULL ON UPDATE CASCADE,
+    FOREIGN KEY (clinicID) REFERENCES clinic(clinicID) ON DELETE CASCADE ON UPDATE CASCADE
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the patient table
@@ -96,8 +96,8 @@ CREATE TABLE `appointments` (
 `clinicID` int(255),
 `symptoms` varchar(20),
 PRIMARY KEY (apptID),
-  FOREIGN KEY (patientID) REFERENCES patient(USERID),
-   FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
+  FOREIGN KEY (patientID) REFERENCES patient(USERID) ON DELETE CASCADE ON UPDATE CASCADE,
+   FOREIGN KEY (doctorID) REFERENCES doctor(USERID) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the appointments table
@@ -116,8 +116,8 @@ CREATE TABLE `Reports` (
   `expiryDate` date NOT NULL,
   `files` LONGBLOB NOT NULL,
   PRIMARY KEY (reportID),
-   FOREIGN KEY (patientID) REFERENCES patient(USERID),
-   FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
+   FOREIGN KEY (patientID) REFERENCES patient(USERID) ON DELETE CASCADE ON UPDATE CASCADE,
+   FOREIGN KEY (doctorID) REFERENCES doctor(USERID) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 
@@ -128,8 +128,8 @@ CREATE TABLE `clinicadmin` (
   `USERID` int(255) NOT NULL,
  `clinicID` int(255) NOT NULL,
  `email` varchar(50) NOT NULL,
-    FOREIGN KEY (USERID) REFERENCES login(USERID),
-     FOREIGN KEY (clinicID) REFERENCES clinic(clinicID)
+    FOREIGN KEY (USERID) REFERENCES login(USERID) ON DELETE CASCADE ON UPDATE CASCADE,
+     FOREIGN KEY (clinicID) REFERENCES clinic(clinicID) ON DELETE CASCADE ON UPDATE CASCADE
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the clinicadmin table
@@ -143,7 +143,7 @@ CREATE TABLE `childLink` (
   `linkID` int(255) AUTO_INCREMENT UNIQUE,
  `parentID` int(255) NOT NULL,
  PRIMARY KEY (linkID),
-    FOREIGN KEY (parentID) REFERENCES patient(USERID)
+    FOREIGN KEY (parentID) REFERENCES patient(USERID) ON DELETE CASCADE ON UPDATE CASCADE
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 /*
@@ -154,8 +154,8 @@ CREATE TABLE `child` (
  `linkID` int(255) NOT NULL,
  `parentID` int(255) NOT NULL,
 	PRIMARY KEY (childID),
-    FOREIGN KEY (parentID) REFERENCES patient(USERID),
-	FOREIGN KEY (linkID) REFERENCES childLink(linkID)
+    FOREIGN KEY (parentID) REFERENCES patient(USERID) ON DELETE CASCADE ON UPDATE CASCADE,
+	FOREIGN KEY (linkID) REFERENCES childLink(linkID) ON DELETE CASCADE ON UPDATE CASCADE
 )ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 /*
@@ -170,8 +170,8 @@ CREATE TABLE `Xrays` (
   `expires_at` DATETIME NULL,
   `files` LONGBLOB NOT NULL,
   PRIMARY KEY (xrayID),
-     FOREIGN KEY (patientID) REFERENCES patient(USERID) ON DELETE CASCADE,
-   FOREIGN KEY (doctorID) REFERENCES doctor(USERID) ON DELETE SET NULL
+     FOREIGN KEY (patientID) REFERENCES patient(USERID) ON DELETE CASCADE ON UPDATE CASCADE,
+   FOREIGN KEY (doctorID) REFERENCES doctor(USERID) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
  -- adds data to the xrays table
@@ -189,8 +189,8 @@ CREATE TABLE `messages` (
 `time_sent` timestamp NOT NULL DEFAULT current_timestamp(),
 `expiryDate` date NOT NULL,
 PRIMARY KEY (messageID),
-   FOREIGN KEY (patientID) REFERENCES patient(USERID),
-   FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
+   FOREIGN KEY (patientID) REFERENCES patient(USERID) ON DELETE CASCADE ON UPDATE CASCADE,
+   FOREIGN KEY (doctorID) REFERENCES doctor(USERID) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 CREATE TABLE `account_update_requests` (
@@ -202,7 +202,7 @@ CREATE TABLE `account_update_requests` (
     `requested_phone` VARCHAR(20),
     `request_date` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `status` ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-    FOREIGN KEY (`doctorID`) REFERENCES `doctor`(`USERID`)
+    FOREIGN KEY (`doctorID`) REFERENCES `doctor`(`USERID`) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE notifications (
@@ -214,6 +214,6 @@ CREATE TABLE notifications (
     notification_status BOOLEAN NOT NULL DEFAULT FALSE, -- false = pending, true = sent
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `expiryDate` date NOT NULL,
-    FOREIGN KEY (patientID) REFERENCES patient(USERID),
-    FOREIGN KEY (doctorID) REFERENCES doctor(USERID)
+    FOREIGN KEY (patientID) REFERENCES patient(USERID) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (doctorID) REFERENCES doctor(USERID) ON DELETE CASCADE ON UPDATE CASCADE
 );

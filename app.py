@@ -3185,28 +3185,31 @@ def clinic_delete_user():
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
     try:
-        # check doctor table
+        # Check if user is a doctor or patient
         cursor.execute("SELECT USERID FROM doctor WHERE USERID = %s", (user_id,))
-        if cursor.fetchone():
-            cursor.execute("DELETE FROM doctor WHERE USERID = %s", (user_id,))
-        else:
+        is_doctor = cursor.fetchone()
+        
+        if not is_doctor:
             cursor.execute("SELECT USERID FROM patient WHERE USERID = %s", (user_id,))
-            if cursor.fetchone():
-                cursor.execute("DELETE FROM patient WHERE USERID = %s", (user_id,))
-            else:
+            is_patient = cursor.fetchone()
+            
+            if not is_patient:
                 flash('Account not found.', 'warning')
                 cursor.close()
                 conn.close()
                 return redirect(url_for('clinic_manage_accounts'))
 
-        # Also remove login entry if exists
-        try:
-            cursor.execute("DELETE FROM login WHERE USERID = %s", (user_id,))
-        except Exception:
-            pass
+        # Delete from the appropriate table - ON DELETE CASCADE will handle related records
+        if is_doctor:
+            cursor.execute("DELETE FROM doctor WHERE USERID = %s", (user_id,))
+        else:
+            cursor.execute("DELETE FROM patient WHERE USERID = %s", (user_id,))
+        
+        # Delete login entry
+        cursor.execute("DELETE FROM login WHERE USERID = %s", (user_id,))
 
         conn.commit()
-        flash('Account deleted.', 'success')
+        flash('Account deleted successfully.', 'success')
     except Exception as e:
         conn.rollback()
         flash('Failed to delete account: {}'.format(e), 'danger')
