@@ -242,7 +242,7 @@ The chest X-ray classification model uses:
 
 ## Authors
 
-- Justin Nguyen, Theisen Reddy, Sabrina Mandla
+- Ngoc Nguyen, Theisen Reddy, Sabrina Mandla
 - Repository: https://github.com/Justinohayo/DeepChest
 
 ## Acknowledgments
