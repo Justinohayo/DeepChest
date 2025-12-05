@@ -2679,13 +2679,12 @@ def p_appointments_search():
     apptID = request.args.get('apptID')
     if not apptID or session.get('userType') != 'patient':
         return redirect(url_for('login'))
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM appointments WHERE apptID = %s", (apptID,))
-    appointment = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return render_template('patient/p_appointments.html', appointment=appointment)
+    try:
+        appointment_id = int(apptID)
+    except ValueError:
+        flash('Invalid appointment ID.', 'error')
+        return redirect(url_for('patient_appointments'))
+    return redirect(url_for('patient_manage_appointment', appointment_id=appointment_id))
 
 # Appointment route for doctor to view appointment details on appointment page
 @app.route('/doctor/appointments/detail')
@@ -2693,13 +2692,30 @@ def doctor_appointments_search():
     apptID = request.args.get('apptID')
     if not apptID or session.get('userType') != 'doctor':
         return redirect(url_for('login'))
+    
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM appointments WHERE apptID = %s", (apptID,))
+    
+    # Fetch the specific appointment with patient info
+    cursor.execute("""
+        SELECT a.apptID, a.appointment_date, a.appointment_time, a.symptoms,
+               p.firstName, p.lastName
+        FROM appointments a
+        JOIN patient p ON a.patientID = p.USERID
+        WHERE a.apptID = %s
+    """, (apptID,))
     appointment = cursor.fetchone()
     cursor.close()
     conn.close()
-    return render_template('doctor/doctor_appointments.html', appointment=appointment)
+    
+    if not appointment:
+        flash('Appointment not found.', 'error')
+        return redirect(url_for('doctor_appointments'))
+    
+    # Return appointments list with only this appointment
+    return render_template('doctor/doctor_appointments.html', 
+                         appointments=[appointment],
+                         username=session.get('username'))
 
 # Appointment route for clinic admin to view appointment details on appointment page
 @app.route('/admin/appointments/detail')
@@ -2707,13 +2723,12 @@ def admin_appointments_search():
     apptID = request.args.get('apptID')
     if not apptID or session.get('userType') != 'clinicadmin':
         return redirect(url_for('login'))
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM appointments WHERE apptID = %s", (apptID,))
-    appointment = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return render_template('clinic_admin/AppointmentAdmin.html', appointment=appointment)
+    try:
+        appointment_id = int(apptID)
+    except ValueError:
+        flash('Invalid appointment ID.', 'error')
+        return redirect(url_for('admin_appointments'))
+    return redirect(url_for('admin_manage_appointment', appointment_id=appointment_id))
 
 # Report route for patient to view report details on reports page
 @app.route('/patient/reports/detail')
@@ -2721,13 +2736,12 @@ def patient_reports_search():
     reportID = request.args.get('reportID')
     if not reportID or session.get('userType') != 'patient':
         return redirect(url_for('login'))
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM Reports WHERE reportID = %s", (reportID,))
-    report = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return render_template('patient/myreports.html', report=report)
+    try:
+        report_id = int(reportID)
+    except ValueError:
+        flash('Invalid report ID.', 'error')
+        return redirect(url_for('patient_reports'))
+    return redirect(url_for('view_report', report_id=report_id))
 
 # Report route for doctor to view report details on reports page
 @app.route('/doctor/reports/detail')
@@ -2735,13 +2749,12 @@ def doctor_reports_search():
     reportID = request.args.get('reportID')
     if not reportID or session.get('userType') != 'doctor':
         return redirect(url_for('login'))
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM Reports WHERE reportID = %s", (reportID,))
-    report = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return render_template('doctor/doctor_reports.html', report=report)
+    try:
+        report_id = int(reportID)
+    except ValueError:
+        flash('Invalid report ID.', 'error')
+        return redirect(url_for('doctor_reports'))
+    return redirect(url_for('view_report', report_id=report_id))
 
 # Report route for clinic admin to view report details on reports page
 @app.route('/admin/reports/detail')
@@ -2749,24 +2762,12 @@ def admin_reports_search():
     reportID = request.args.get('reportID')
     if not reportID or session.get('userType') != 'clinicadmin':
         return redirect(url_for('login'))
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT r.*, 
-               p.firstName AS patientFirstName, p.lastName AS patientLastName,
-               d.firstName AS doctorFirstName, d.lastName AS doctorLastName
-        FROM Reports r
-        JOIN patient p ON r.patientID = p.USERID
-        JOIN doctor d ON r.doctorID = d.USERID
-        WHERE r.reportID = %s
-    """, (reportID,))
-    report = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    if not report:
-        flash("Report not found.", "danger")
+    try:
+        report_id = int(reportID)
+    except ValueError:
+        flash('Invalid report ID.', 'error')
         return redirect(url_for('admin_managereports'))
-    return render_template('clinic_admin/ManageReports.html', report=report)
+    return redirect(url_for('view_report', report_id=report_id))
 
 # Helper function to check and delete expired reports
 def delete_expired_reports():

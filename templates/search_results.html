@@ -157,6 +157,7 @@
                         {% elif user_type == 'doctor' %}{{ url_for('doctor_reports_search', reportID=r.reportID) }}
                         {% elif user_type == 'clinicadmin' %}{{ url_for('admin_reports_search', reportID=r.reportID) }}
                         {% else %}#{% endif %}"
+                  target="_blank"
                 >View</a>
               </td>
             </tr>
